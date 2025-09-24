@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文案存放站</title>
+    <style>
+        /* --- 全局与主题样式 --- */
+        :root {
+            --primary-bg: #f0f8ff; /* 淡蓝色背景 */
+            --sidebar-bg: #e0f0ff;
+            --main-header-bg: #ffffff;
+            --card-bg: #ffffff;
+            --button-bg: #4a90e2; /* 按钮蓝色 */
+            --button-hover-bg: #357abd;
+            --text-color: #333333;
+            --subtle-text-color: #777777;
+            --border-color: #d0e0f0;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--font-family);
+            background-color: var(--primary-bg);
+            color: var(--text-color);
+            line-height: 1.6;
+            overflow-x: hidden; /* 防止水平滚动条 */
+        }
+
+        /* --- 主布局 --- */
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 220px; /* 固定宽度 */
+            background-color: var(--sidebar-bg);
+            padding: 20px;
+            box-sizing: border-box;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            position: fixed; /* 改为固定定位，不影响主内容 */
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 200;
+            transform: translateX(-100%); /* 默认移出屏幕外 */
+            transition: transform 0.35s ease-out; /* 更平滑的动画曲线 */
+            box-shadow: 2px 0 5px var(--shadow-color);
+            overflow-y: auto;
+        }
+
+        .sidebar.open {
+            transform: translateX(0); /* 移入屏幕 */
+        }
+
+        .sidebar h2 {
+            margin-top: 0;
+            font-size: 1.5em;
+            color: var(--button-bg);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            text-align: center;
+            flex-shrink: 0; /* 防止被压缩 */
+        }
+
+        #group-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+        }
+
+        #group-list li {
+            padding: 10px 15px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background-color 0.2s, color 0.2s;
+            text-align: left;
+            white-space: nowrap; /* 确保文字不换行 */
+        }
+
+        #group-list li:hover {
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+
+        #group-list li.active {
+            background-color: var(--button-bg);
+            color: white;
+            font-weight: bold;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%; /* 确保主内容区占满 */
+        }
+        
+        #sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            z-index: 199; /* 在侧边栏下面 */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.35s ease-out, visibility 0.35s ease-out;
+        }
+
+        #sidebar-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .main-header {
+            padding: 15px 25px 15px 15px; /* 减小了左边距 */
+            background-color: var(--main-header-bg);
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px var(--shadow-color);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 12px; /* 减小了间距 */
+        }
+
+        #hamburger-menu {
+            font-size: 1.8em;
+            cursor: pointer;
+            color: var(--button-bg);
+            padding: 5px;
+            margin-right: 3px; /* 额外微调 */
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+
+        #search-box {
+            flex-grow: 1;
+            padding: 10px 15px;
+            font-size: 1em;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        #search-box:focus {
+            outline: none;
+            border-color: var(--button-bg);
+            box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+        }
+
+        #notes-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 30px;
+            padding-bottom: 120px; /* 增加底部内边距 */
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+            align-content: start;
+        }
+
+        /* --- 文案卡片样式 --- */
+        .note-card {
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px var(--shadow-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+        
+        .note-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .note-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            flex-grow: 1;
+            margin-bottom: 15px;
+        }
+
+        .note-footer {
+            border-top: 1px solid var(--border-color);
+            padding-top: 10px;
+            font-size: 0.9em;
+            color: var(--subtle-text-color);
+        }
+
+        .note-footer .group {
+            background-color: var(--primary-bg);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: var(--button-bg);
+            margin-right: 10px;
+            display: inline-block;
+        }
+
+        .note-actions {
+            margin-top: 15px;
+            text-align: right;
+        }
+
+        .note-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 10px;
+            font-size: 0.9em;
+            color: var(--subtle-text-color);
+            transition: color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .note-actions button:hover {
+            color: var(--button-bg);
+        }
+
+        /* --- 添加按钮(+) --- */
+        #add-note-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 2em;
+            line-height: 60px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.2s, transform 0.2s;
+            z-index: 100;
+        }
+
+        #add-note-btn:hover {
+            background-color: var(--button-hover-bg);
+            transform: scale(1.1);
+        }
+
+        /* --- 通用弹窗样式 (Modal) --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background-color: var(--primary-bg);
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
+            width: 90%;
+            max-width: 500px;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+        
+        .modal-overlay.visible .modal {
+            transform: scale(1);
+        }
+
+        .modal h3 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            color: var(--button-bg);
+            text-align: center;
+        }
+
+        .modal .form-group {
+            margin-bottom: 20px;
+        }
+
+        .modal label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .modal input[type="text"],
+        .modal textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            background-color: #fff;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: var(--font-family);
+            box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .modal input[type="text"]:focus,
+        .modal textarea:focus {
+            outline: none;
+            border-color: var(--button-bg);
+            box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+        }
+
+        .modal textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .modal-buttons button {
+            padding: 10px 25px;
+            border-radius: 8px;
+            border: none;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, transform 0.1s;
+        }
+
+        .modal-buttons button:active {
+            transform: scale(0.98);
+        }
+
+        #save-note-btn, #info-ok-btn {
+            background-color: var(--button-bg);
+            color: white;
+        }
+
+        #save-note-btn:hover, #info-ok-btn:hover {
+            background-color: var(--button-hover-bg);
+        }
+        
+        #cancel-btn {
+            background-color: #f1f1f1;
+            color: var(--subtle-text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        #cancel-btn:hover {
+            background-color: #e0e0e0;
+        }
+        
+        /* --- 自定义确认/信息弹窗样式 --- */
+        .confirm-modal-content, .info-modal-content {
+            text-align: center;
+        }
+        .confirm-modal-content p, .info-modal-content p {
+            font-size: 1.1em;
+            margin-bottom: 30px;
+            color: var(--text-color);
+        }
+        #confirm-yes {
+            background-color: #e74c3c;
+            color: white;
+        }
+        #confirm-yes:hover {
+            background-color: #c0392b;
+        }
+        #confirm-no {
+            background-color: #f1f1f1;
+            color: var(--subtle-text-color);
+            border: 1px solid var(--border-color);
+        }
+        #confirm-no:hover {
+            background-color: #e0e0e0;
+        }
+        .info-modal-content .modal-buttons {
+            justify-content: center; /* 信息弹窗按钮居中 */
+        }
+
+        /* 复制成功提示 */
+        .copy-feedback {
+            position: fixed;
+            top: 20px; /* 定位到顶部 */
+            left: 50%; /* 水平居中 */
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            opacity: 0;
+            /* 组合 transform 实现水平居中和动画 */
+            transform: translate(-50%, -10px); 
+            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+            z-index: 1002;
+            pointer-events: none;
+        }
+        .copy-feedback.show {
+            opacity: 1;
+            transform: translate(-50%, 0); /* 移动到最终位置 */
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar" id="sidebar">
+        <h2>分组</h2>
+        <ul id="group-list"></ul>
+    </aside>
+
+    <div id="sidebar-overlay"></div>
+
+    <div class="container">
+        <main class="main-content">
+            <header class="main-header">
+                <span id="hamburger-menu">☰</span>
+                <input type="search" id="search-box" placeholder="搜索内容、分组、备注...">
+            </header>
+            <div id="notes-container"></div>
+        </main>
+    </div>
+
+    <button id="add-note-btn">+</button>
+
+    <div class="modal-overlay" id="note-modal-overlay">
+        <div class="modal" id="note-modal">
+            <h3 id="modal-title">添加新文案</h3>
+            <form id="note-form">
+                <input type="hidden" id="note-id">
+                <div class="form-group">
+                    <label for="note-content">内容 (必填)</label>
+                    <textarea id="note-content" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="note-group">分组</label>
+                    <input type="text" id="note-group" placeholder="例如：产品代餐、疯四文案">
+                </div>
+                <div class="form-group">
+                    <label for="note-remark">备注</label>
+                    <input type="text" id="note-remark" placeholder="例如：这是一个转盘">
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" id="cancel-btn">取消</button>
+                    <button type="submit" id="save-note-btn">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="confirm-modal-overlay">
+        <div class="modal" id="confirm-modal">
+            <div class="confirm-modal-content">
+                <p>确定要删除这条文案吗？</p>
+                <div class="modal-buttons" id="confirm-modal-buttons">
+                    <button id="confirm-no">取消</button>
+                    <button id="confirm-yes">删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="info-modal-overlay">
+        <div class="modal" id="info-modal">
+            <div class="info-modal-content">
+                <p id="info-modal-text">这里是提示信息</p>
+                <div class="modal-buttons">
+                    <button id="info-ok-btn">好的</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="copy-feedback" id="copy-feedback">已复制！</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM 元素获取 ---
+            const notesContainer = document.getElementById('notes-container');
+            const groupList = document.getElementById('group-list');
+            const searchBox = document.getElementById('search-box');
+            const addNoteBtn = document.getElementById('add-note-btn');
+            
+            // 文案编辑/添加弹窗
+            const noteModalOverlay = document.getElementById('note-modal-overlay');
+            const noteForm = document.getElementById('note-form');
+            const modalTitle = document.getElementById('modal-title');
+            const cancelBtn = document.getElementById('cancel-btn');
+            const noteIdInput = document.getElementById('note-id');
+            const noteContentInput = document.getElementById('note-content');
+            const noteGroupInput = document.getElementById('note-group');
+            const noteRemarkInput = document.getElementById('note-remark');
+
+            // 自定义确认弹窗
+            const confirmModalOverlay = document.getElementById('confirm-modal-overlay');
+            const confirmYesBtn = document.getElementById('confirm-yes');
+            const confirmNoBtn = document.getElementById('confirm-no');
+            
+            // 自定义信息弹窗
+            const infoModalOverlay = document.getElementById('info-modal-overlay');
+            const infoModalText = document.getElementById('info-modal-text');
+            const infoOkBtn = document.getElementById('info-ok-btn');
+
+            // 汉堡菜单和侧边栏
+            const hamburgerMenu = document.getElementById('hamburger-menu');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+            // 复制提示
+            const copyFeedback = document.getElementById('copy-feedback');
+
+            // --- 数据与状态 ---
+            let notes = JSON.parse(localStorage.getItem('notes-app-data')) || [];
+            let currentFilterGroup = 'all';
+            let confirmCallback = null;
+
+            // --- 数据管理 ---
+            const saveNotes = () => {
+                localStorage.setItem('notes-app-data', JSON.stringify(notes));
+            };
+
+            // --- 渲染函数 ---
+            const renderGroups = () => {
+                const groups = ['all', ...new Set(notes.map(note => note.group).filter(Boolean))].sort((a, b) => {
+                    if (a === 'all') return -1; if (b === 'all') return 1;
+                    return a.localeCompare(b, 'zh-CN');
+                });
+
+                groupList.innerHTML = '';
+                groups.forEach(group => {
+                    const li = document.createElement('li');
+                    li.dataset.group = group;
+                    li.textContent = group === 'all' ? '所有文案' : group;
+                    if (group === currentFilterGroup) { li.classList.add('active'); }
+                    groupList.appendChild(li);
+                });
+            };
+
+            const renderNotes = () => {
+                const searchTerm = searchBox.value.toLowerCase();
+                const filteredNotes = notes.filter(note => 
+                    (currentFilterGroup === 'all' || note.group === currentFilterGroup) &&
+                    (searchTerm === '' ||
+                     note.content.toLowerCase().includes(searchTerm) ||
+                     (note.group && note.group.toLowerCase().includes(searchTerm)) ||
+                     (note.remark && note.remark.toLowerCase().includes(searchTerm)))
+                );
+
+                notesContainer.innerHTML = '';
+                if (filteredNotes.length === 0) {
+                    notesContainer.innerHTML = '<p style="color: var(--subtle-text-color); grid-column: 1 / -1; text-align: center; margin-top: 50px;">没有找到匹配的文案哦。</p>';
+                } else {
+                    filteredNotes.forEach(note => {
+                        const card = document.createElement('div');
+                        card.className = 'note-card';
+                        card.dataset.id = note.id;
+                        card.innerHTML = `
+                            <div class="note-content">${escapeHTML(note.content)}</div>
+                            <div>
+                                <div class="note-footer">
+                                    ${note.group ? `<span class="group">${escapeHTML(note.group)}</span>` : ''}
+                                    <span>${note.remark ? escapeHTML(note.remark) : ''}</span>
+                                </div>
+                                <div class="note-actions">
+                                    <button class="copy-btn">复制</button>
+                                    <button class="edit-btn">编辑</button>
+                                    <button class="delete-btn">删除</button>
+                                </div>
+                            </div>`;
+                        notesContainer.appendChild(card);
+                    });
+                }
+            };
+            
+            // --- 弹窗控制 ---
+            const showNoteModal = (mode = 'add', note = null) => {
+                noteForm.reset();
+                modalTitle.textContent = mode === 'edit' ? '编辑文案' : '添加新文案';
+                noteIdInput.value = note ? note.id : '';
+                noteContentInput.value = note ? note.content : '';
+                noteGroupInput.value = note ? note.group || '' : '';
+                noteRemarkInput.value = note ? note.remark || '' : '';
+                noteModalOverlay.classList.add('visible');
+            };
+            const hideNoteModal = () => noteModalOverlay.classList.remove('visible');
+            
+            const showConfirmModal = (message, callback) => {
+                confirmModalOverlay.querySelector('p').textContent = message;
+                confirmCallback = callback;
+                confirmModalOverlay.classList.add('visible');
+            };
+            const hideConfirmModal = () => confirmModalOverlay.classList.remove('visible');
+
+            const showInfoModal = (message) => {
+                infoModalText.textContent = message;
+                infoModalOverlay.classList.add('visible');
+            };
+            const hideInfoModal = () => infoModalOverlay.classList.remove('visible');
+
+            // --- 事件处理 ---
+            noteForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = noteIdInput.value;
+                const content = noteContentInput.value.trim();
+                if (!content) { showInfoModal('内容不能为空哦！'); return; }
+
+                const noteData = {
+                    content,
+                    group: noteGroupInput.value.trim(),
+                    remark: noteRemarkInput.value.trim()
+                };
+
+                if (id) { // 更新
+                    const noteIndex = notes.findIndex(note => note.id == id);
+                    if (noteIndex > -1) notes[noteIndex] = { ...notes[noteIndex], ...noteData };
+                } else { // 添加
+                    notes.unshift({ id: Date.now(), ...noteData });
+                }
+                saveNotes();
+                refreshUI();
+                hideNoteModal();
+            });
+
+            groupList.addEventListener('click', (e) => {
+                if (e.target.tagName === 'LI') {
+                    currentFilterGroup = e.target.dataset.group;
+                    refreshUI();
+                    closeSidebar();
+                }
+            });
+
+            searchBox.addEventListener('input', renderNotes);
+
+            notesContainer.addEventListener('click', (e) => {
+                const target = e.target;
+                const card = target.closest('.note-card');
+                if (!card) return;
+
+                const noteId = card.dataset.id;
+                const note = notes.find(n => n.id == noteId);
+
+                if (target.classList.contains('delete-btn')) {
+                    showConfirmModal('确定要删除这条文案吗？', (confirmed) => {
+                        if (confirmed) {
+                            notes = notes.filter(n => n.id != noteId);
+                            saveNotes();
+                            refreshUI();
+                        }
+                    });
+                } else if (target.classList.contains('edit-btn')) {
+                    if (note) showNoteModal('edit', note);
+                } else if (target.classList.contains('copy-btn')) {
+                    if (note) copyToClipboard(note.content);
+                }
+            });
+
+            // --- 侧边栏控制 ---
+            const openSidebar = () => {
+                sidebar.classList.add('open');
+                sidebarOverlay.classList.add('visible');
+            };
+            const closeSidebar = () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('visible');
+            };
+            hamburgerMenu.addEventListener('click', openSidebar);
+            sidebarOverlay.addEventListener('click', closeSidebar);
+
+            // --- 弹窗关闭按钮 ---
+            addNoteBtn.addEventListener('click', () => showNoteModal('add'));
+            cancelBtn.addEventListener('click', hideNoteModal);
+            noteModalOverlay.addEventListener('click', (e) => { if (e.target === noteModalOverlay) hideNoteModal(); });
+            
+            confirmYesBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(true); hideConfirmModal(); });
+            confirmNoBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(false); hideConfirmModal(); });
+            infoOkBtn.addEventListener('click', hideInfoModal);
+            infoModalOverlay.addEventListener('click', (e) => { if (e.target === infoModalOverlay) hideInfoModal(); });
+
+
+            // --- 辅助函数与初始化 ---
+            const escapeHTML = (str) => {
+                const p = document.createElement('p');
+                p.textContent = str;
+                return p.innerHTML;
+            };
+
+            const copyToClipboard = (text) => {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        showCopyFeedback();
+                    }).catch(() => {
+                        fallbackCopyTextToClipboard(text); // 如果现代方法失败，尝试备用方法
+                    });
+                } else {
+                    fallbackCopyTextToClipboard(text); // 如果不支持现代方法，直接使用备用方法
+                }
+            };
+            
+            const fallbackCopyTextToClipboard = (text) => {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed"; 
+                textArea.style.top = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        showCopyFeedback();
+                    } else {
+                        showInfoModal('复制失败！请手动复制。');
+                    }
+                } catch (err) {
+                    showInfoModal('复制失败！浏览器可能限制了此操作。');
+                }
+                document.body.removeChild(textArea);
+            };
+
+            let copyTimeout;
+            const showCopyFeedback = () => {
+                clearTimeout(copyTimeout);
+                copyFeedback.classList.add('show');
+                copyTimeout = setTimeout(() => { copyFeedback.classList.remove('show'); }, 1500);
+            };
+
+            const refreshUI = () => {
+                renderGroups();
+                renderNotes();
+            };
+
+            // 页面加载时初始化
+            refreshUI();
+        });
+    </script>
+</body>
+</html>
