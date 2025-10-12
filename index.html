@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文案与文件存放站</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;</script>
     <style>
         /* --- 全局与主题样式 --- */
         :root {
@@ -136,7 +139,6 @@
         .file-card { cursor: pointer; }
 
         .note-content { white-space: pre-wrap; word-wrap: break-word; flex-grow: 1; margin-bottom: 15px; transition: max-height 0.35s ease-in-out; }
-        /* 长文案折叠样式 */
         .note-content.collapsible { max-height: calc(1em * var(--line-height) * 5); overflow: hidden; position: relative; cursor: pointer; }
         .note-content.collapsible:not(.expanded)::after { content: '... 点击展开'; position: absolute; bottom: 0; right: 0; background: linear-gradient(to right, transparent, var(--card-bg) 25%); padding: 0 0 2px 30px; color: var(--subtle-text-color); font-weight: bold; font-size: 0.9em; }
         
@@ -199,17 +201,107 @@
         .copy-feedback { position: fixed; top: 20px; left: 50%; background-color: #28a745; color: white; padding: 10px 20px; border-radius: 8px; opacity: 0; transform: translate(-50%, -10px);  transition: opacity 0.3s ease-out, transform 0.3s ease-out; z-index: 2002; pointer-events: none; }
         .copy-feedback.show { opacity: 1; transform: translate(-50%, 0); }
 
-        /* 文件预览窗口样式 */
+        /* --- 文件预览窗口样式 (有修改) --- */
         #viewer-modal-overlay { z-index: 2000; background-color: rgba(0,0,0,0.8); }
-        #viewer-header { position: absolute; top: 0; left: 0; right: 0; padding: 15px 20px; background-color: rgba(20,20,20,0.7); display: flex; justify-content: space-between; align-items: center; color: white; }
+        #viewer-header { position: absolute; top: 0; left: 0; right: 0; padding: 15px 20px; background-color: rgba(20,20,20,0.7); display: flex; justify-content: space-between; align-items: center; color: white; z-index: 10; }
         #viewer-filename { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #close-viewer-btn { font-size: 1.5em; cursor: pointer; padding: 5px; line-height: 1; }
-        #viewer-content { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; padding: 60px 20px 20px; box-sizing: border-box; }
-        #viewer-content img, #viewer-content video, #viewer-content audio, #viewer-content iframe { max-width: 100%; max-height: 100%; border: none; object-fit: contain; }
+        
+        #viewer-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 20px;
+            background-color: rgba(20, 20, 20, 0.7);
+            color: white;
+            z-index: 10;
+            text-align: center;
+            font-size: 0.9em;
+            pointer-events: none;
+        }
+        
+        #viewer-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 80px 20px 60px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        
+        #viewer-content img,
+        #viewer-content video,
+        #viewer-content audio,
+        #viewer-content iframe {
+            max-width: 100%;
+            max-height: 100%;
+            border: none;
+            object-fit: contain;
+        }
+        #viewer-content canvas {
+            max-width: 95%;
+            height: auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        #viewer-content canvas:not(:first-child) {
+            margin-top: 20px;
+        }
+        
         #viewer-content pre { width: 100%; height: 100%; background-color: #1e1e1e; color: #d4d4d4; padding: 20px; overflow: auto; white-space: pre-wrap; word-wrap: break-word; font-size: 0.9em; box-sizing: border-box; }
-        .unsupported-preview { color: white; text-align: center; }
+        .unsupported-preview { color: white; text-align: center; margin-top: 40px; }
         .unsupported-preview p { margin-bottom: 20px; }
         .unsupported-preview .download-btn { background-color: var(--button-bg); color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; }
+        
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--button-bg);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 80px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .docx-preview-container {
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            background-color: #ffffff;
+            color: #000000;
+            padding: 40px 50px;
+            border-radius: 5px;
+            max-width: 840px;
+            width: 100%;
+            box-sizing: border-box;
+            line-height: 1.7;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            margin: 0 auto 20px auto;
+        }
+        .docx-preview-container h1, .docx-preview-container h2, .docx-preview-container h3, .docx-preview-container h4, .docx-preview-container h5, .docx-preview-container h6 {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #222;
+            margin-top: 1.5em;
+            margin-bottom: 0.8em;
+            line-height: 1.3;
+        }
+        .docx-preview-container h1 { font-size: 2em; border-bottom: 2px solid #eee; padding-bottom: 0.3em; }
+        .docx-preview-container h2 { font-size: 1.6em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        .docx-preview-container h3 { font-size: 1.3em; }
+        .docx-preview-container h4 { font-size: 1.1em; color: #444; }
+        .docx-preview-container p { margin-bottom: 1.2em; }
+        .docx-preview-container p:last-child { margin-bottom: 0; }
+        .docx-preview-container ul, .docx-preview-container ol { padding-left: 2em; margin-bottom: 1.2em; }
+        .docx-preview-container li { margin-bottom: 0.5em; }
+        .docx-preview-container a { color: #005a9c; text-decoration: underline; }
+        .docx-preview-container a:hover { color: #003366; }
+        .docx-preview-container table { border-collapse: collapse; width: 100%; margin-bottom: 1.5em; font-size: 0.95em; }
+        .docx-preview-container td, .docx-preview-container th { border: 1px solid #cccccc; padding: 10px 12px; text-align: left; }
+        .docx-preview-container th { background-color: #f3f3f3; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -223,7 +315,7 @@
     <div class="modal-overlay" id="import-options-modal-overlay"> <div class="modal" id="import-options-modal"> <h3>导入选项</h3> <form> <div class="form-group"> <div class="radio-group"> <label class="radio-label"> <input type="radio" name="import-mode" value="overwrite" checked> <strong>覆盖</strong> <small>覆盖当前所有文案与文件。</small> </label> <label class="radio-label"> <input type="radio" name="import-mode" value="append"> <strong>添加</strong> <small>在现有基础上，添加新内容。</small> </label> </div> </div> <div class="modal-buttons"> <button type="button" id="import-options-cancel-btn">取消</button> <button type="button" id="import-select-file-btn">选择文件</button> </div> </form> </div> </div>
     <div class="modal-overlay" id="confirm-modal-overlay"> <div class="modal" id="confirm-modal"> <div class="confirm-modal-content"> <p id="confirm-modal-text">确定要删除吗？</p> <div class="modal-buttons" id="confirm-modal-buttons"> <button id="confirm-no">取消</button> <button id="confirm-yes">确定</button> </div> </div> </div> </div>
     <div class="modal-overlay" id="info-modal-overlay"> <div class="modal" id="info-modal"> <div class="info-modal-content"> <p id="info-modal-text">这里是提示信息</p> <div class="modal-buttons"> <button id="info-ok-btn">好的</button> </div> </div> </div> </div>
-    <div class="modal-overlay" id="viewer-modal-overlay"> <div id="viewer-header"> <span id="viewer-filename"></span> <span id="close-viewer-btn">&times;</span> </div> <div id="viewer-content"></div> </div>
+    <div class="modal-overlay" id="viewer-modal-overlay"> <div id="viewer-header"> <span id="viewer-filename"></span> <span id="close-viewer-btn">&times;</span> </div> <div id="viewer-content"></div> <div id="viewer-footer"> <span id="viewer-page-indicator"></span> </div> </div>
     <div class="copy-feedback" id="copy-feedback">已复制！</div>
 
     <script>
@@ -235,11 +327,13 @@
             const dbActions = { add: (item) => new Promise((res, rej) => { const r = getStore('readwrite').add(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), getAll: () => new Promise((res, rej) => { const r = getStore('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), update: (item) => new Promise((res, rej) => { const r = getStore('readwrite').put(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), delete: (id) => new Promise((res, rej) => { const r = getStore('readwrite').delete(id); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), clear: () => new Promise((res, rej) => { const r = getStore('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), };
             
             // --- DOM 元素获取 ---
-            const docBody = document.body, docRoot = document.documentElement, itemsContainer = document.getElementById('items-container'), groupList = document.getElementById('group-list'), searchBox = document.getElementById('search-box'), addNoteBtn = document.getElementById('add-note-btn'), noteModalOverlay = document.getElementById('note-modal-overlay'), noteForm = document.getElementById('note-form'), modalTitle = document.getElementById('modal-title'), cancelBtn = document.getElementById('cancel-btn'), noteIdInput = document.getElementById('note-id'), noteContentInput = document.getElementById('note-content'), noteGroupInput = document.getElementById('note-group'), noteRemarkInput = document.getElementById('note-remark'), noteGroupDropdown = document.getElementById('note-group-dropdown'), uploadFileBtn = document.getElementById('upload-file-btn'), fileInput = document.getElementById('file-input'), fileModalOverlay = document.getElementById('file-modal-overlay'), fileForm = document.getElementById('file-form'), fileModalTitle = document.getElementById('file-modal-title'), fileIdInput = document.getElementById('file-id'), fileNameDisplay = document.getElementById('file-name-display'), fileGroupInput = document.getElementById('file-group'), fileRemarkInput = document.getElementById('file-remark'), fileGroupDropdown = document.getElementById('file-group-dropdown'), cancelFileBtn = document.getElementById('cancel-file-btn'), confirmModalOverlay = document.getElementById('confirm-modal-overlay'), confirmModalText = document.getElementById('confirm-modal-text'), confirmYesBtn = document.getElementById('confirm-yes'), confirmNoBtn = document.getElementById('confirm-no'), infoModalOverlay = document.getElementById('info-modal-overlay'), infoModalText = document.getElementById('info-modal-text'), infoOkBtn = document.getElementById('info-ok-btn'), importBtn = document.getElementById('import-btn'), exportBtn = document.getElementById('export-btn'), importFileInput = document.getElementById('import-file-input'), importOptionsModalOverlay = document.getElementById('import-options-modal-overlay'), importSelectFileBtn = document.getElementById('import-select-file-btn'), importOptionsCancelBtn = document.getElementById('import-options-cancel-btn'), hamburgerMenu = document.getElementById('hamburger-menu'), sidebar = document.getElementById('sidebar'), sidebarOverlay = document.getElementById('sidebar-overlay'), copyFeedback = document.getElementById('copy-feedback'), presetColorsContainer = document.getElementById('preset-colors'), customColorPicker = document.getElementById('custom-color-picker'), viewerModalOverlay = document.getElementById('viewer-modal-overlay'), viewerHeader = document.getElementById('viewer-header'), viewerFilename = document.getElementById('viewer-filename'), closeViewerBtn = document.getElementById('close-viewer-btn'), viewerContent = document.getElementById('viewer-content');
+            const docBody = document.body, docRoot = document.documentElement, itemsContainer = document.getElementById('items-container'), groupList = document.getElementById('group-list'), searchBox = document.getElementById('search-box'), addNoteBtn = document.getElementById('add-note-btn'), noteModalOverlay = document.getElementById('note-modal-overlay'), noteForm = document.getElementById('note-form'), modalTitle = document.getElementById('modal-title'), cancelBtn = document.getElementById('cancel-btn'), noteIdInput = document.getElementById('note-id'), noteContentInput = document.getElementById('note-content'), noteGroupInput = document.getElementById('note-group'), noteRemarkInput = document.getElementById('note-remark'), noteGroupDropdown = document.getElementById('note-group-dropdown'), uploadFileBtn = document.getElementById('upload-file-btn'), fileInput = document.getElementById('file-input'), fileModalOverlay = document.getElementById('file-modal-overlay'), fileForm = document.getElementById('file-form'), fileModalTitle = document.getElementById('file-modal-title'), fileIdInput = document.getElementById('file-id'), fileNameDisplay = document.getElementById('file-name-display'), fileGroupInput = document.getElementById('file-group'), fileRemarkInput = document.getElementById('file-remark'), fileGroupDropdown = document.getElementById('file-group-dropdown'), cancelFileBtn = document.getElementById('cancel-file-btn'), confirmModalOverlay = document.getElementById('confirm-modal-overlay'), confirmModalText = document.getElementById('confirm-modal-text'), confirmYesBtn = document.getElementById('confirm-yes'), confirmNoBtn = document.getElementById('confirm-no'), infoModalOverlay = document.getElementById('info-modal-overlay'), infoModalText = document.getElementById('info-modal-text'), infoOkBtn = document.getElementById('info-ok-btn'), importBtn = document.getElementById('import-btn'), exportBtn = document.getElementById('export-btn'), importFileInput = document.getElementById('import-file-input'), importOptionsModalOverlay = document.getElementById('import-options-modal-overlay'), importSelectFileBtn = document.getElementById('import-select-file-btn'), importOptionsCancelBtn = document.getElementById('import-options-cancel-btn'), hamburgerMenu = document.getElementById('hamburger-menu'), sidebar = document.getElementById('sidebar'), sidebarOverlay = document.getElementById('sidebar-overlay'), copyFeedback = document.getElementById('copy-feedback'), presetColorsContainer = document.getElementById('preset-colors'), customColorPicker = document.getElementById('custom-color-picker'), viewerModalOverlay = document.getElementById('viewer-modal-overlay'), viewerHeader = document.getElementById('viewer-header'), viewerFilename = document.getElementById('viewer-filename'), closeViewerBtn = document.getElementById('close-viewer-btn'), viewerContent = document.getElementById('viewer-content'), viewerPageIndicator = document.getElementById('viewer-page-indicator');
 
             // --- 数据与状态 ---
             let notes = [], files = [], groupOrder = [], currentFilterGroup = 'all', confirmCallback = null, tempFile = null, currentObjectUrl = null;
-            
+            let currentPdfDoc = null;
+            let viewerScrollHandler = null;
+
             // --- 主题美化 ---
             const presetThemes = [ { name: '默认 · 宝蓝', hue: 215, sat: 50, light: 50, value: '#4069bf' }, { name: '草莓奶昔', hue: 345, sat: 80, light: 88, value: '#fcdbe4' }, { name: '奶油黄', hue: 55, sat: 75, light: 75, value: '#f2e6a4' }, { name: '薄荷马卡龙', hue: 150, sat: 55, light: 85, value: '#c7f2de' }, { name: '海盐冰淇淋', hue: 195, sat: 70, light: 82, value: '#bce6f7' }, { name: '香芋布丁', hue: 260, sat: 65, light: 88, value: '#e6dff9' }, { name: '蜜桃苏打', hue: 20, sat: 90, light: 80, value: '#fcd3c4' }, { name: '宝宝蓝', hue: 210, sat: 70, light: 80, value: '#b8d6f5' }, { name: '抹茶拿铁', hue: 95, sat: 35, light: 80, value: '#d5e6c7' }, { name: '焦糖饼干', hue: 30, sat: 50, light: 75, value: '#e6ccb3' }, ];
             const applyTheme = (h, s, l) => { docRoot.style.setProperty('--theme-hue', h); docRoot.style.setProperty('--theme-sat', `${s}%`); docRoot.style.setProperty('--theme-light', `${l}%`); localStorage.setItem('theme', JSON.stringify({ hue: h, sat: s, light: l })); };
@@ -297,13 +391,149 @@
             const hideConfirmModal = () => hideModal(confirmModalOverlay);
             const showInfoModal = (msg) => { infoModalText.textContent = msg; showModal(infoModalOverlay); };
             const hideInfoModal = () => hideModal(infoModalOverlay);
-            const showViewer = (file) => { if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl); viewerFilename.textContent = file.filename; viewerContent.innerHTML = ''; const type = file.file.type; currentObjectUrl = URL.createObjectURL(file.file); let element; if (type.startsWith('image/')) { element = document.createElement('img'); element.src = currentObjectUrl; } else if (type.startsWith('video/')) { element = document.createElement('video'); element.src = currentObjectUrl; element.controls = true; } else if (type.startsWith('audio/')) { element = document.createElement('audio'); element.src = currentObjectUrl; element.controls = true; } else if (type === 'application/pdf') { element = document.createElement('iframe'); element.src = currentObjectUrl; } else if (type.startsWith('text/') || type === 'application/json') { file.file.text().then(text => { viewerContent.innerHTML = ''; const pre = document.createElement('pre'); pre.textContent = text; viewerContent.appendChild(pre); }); } else { viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览此文件类型。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`; } if (element) viewerContent.appendChild(element); showModal(viewerModalOverlay); };
-            const hideViewer = () => { hideModal(viewerModalOverlay); viewerContent.innerHTML = ''; if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; };
+            
+            const showViewer = async (file) => {
+                if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+                viewerFilename.textContent = file.filename;
+                viewerContent.innerHTML = '';
+                viewerPageIndicator.textContent = '';
+                const type = file.file.type;
+                const filename = file.filename.toLowerCase();
+                currentObjectUrl = URL.createObjectURL(file.file);
+                let element;
+
+                if (type.startsWith('image/')) {
+                    element = document.createElement('img');
+                    element.src = currentObjectUrl;
+                } else if (type.startsWith('video/')) {
+                    element = document.createElement('video');
+                    element.src = currentObjectUrl;
+                    element.controls = true;
+                } else if (type.startsWith('audio/')) {
+                    element = document.createElement('audio');
+                    element.src = currentObjectUrl;
+                    element.controls = true;
+                } else if (type === 'application/pdf') {
+                    viewerContent.innerHTML = `<div class="loader"></div>`;
+                    
+                    const setupPdfViewer = async (pdfDoc) => {
+                        currentPdfDoc = pdfDoc;
+                        const totalPages = pdfDoc.numPages;
+                        const pdfPageCanvases = [];
+                        
+                        viewerPageIndicator.textContent = `第 1 / ${totalPages} 页`;
+                        viewerContent.innerHTML = '';
+                        
+                        viewerScrollHandler = () => {
+                            const viewerRect = viewerContent.getBoundingClientRect();
+                            let mostVisiblePage = 1;
+                            let maxVisibleHeight = 0;
+
+                            pdfPageCanvases.forEach((canvas, index) => {
+                                const canvasRect = canvas.getBoundingClientRect();
+                                const visibleTop = Math.max(viewerRect.top, canvasRect.top);
+                                const visibleBottom = Math.min(viewerRect.bottom, canvasRect.bottom);
+                                const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+
+                                if (visibleHeight > maxVisibleHeight) {
+                                    maxVisibleHeight = visibleHeight;
+                                    mostVisiblePage = index + 1;
+                                }
+                            });
+                            viewerPageIndicator.textContent = `第 ${mostVisiblePage} / ${totalPages} 页`;
+                        };
+                        viewerContent.addEventListener('scroll', viewerScrollHandler);
+
+                        for (let i = 1; i <= totalPages; i++) {
+                            const page = await pdfDoc.getPage(i);
+                            const pixelRatio = window.devicePixelRatio || 1;
+                            const viewport = page.getViewport({ scale: pixelRatio * 1.5 });
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
+
+                            const renderContext = { canvasContext: context, viewport: viewport };
+                            await page.render(renderContext).promise;
+                            viewerContent.appendChild(canvas);
+                            pdfPageCanvases.push(canvas);
+                        }
+                    };
+                    
+                    pdfjsLib.getDocument(currentObjectUrl).promise.then(setupPdfViewer).catch(err => {
+                        console.error('PDF.js error:', err);
+                        viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览此PDF文件。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`;
+                    });
+
+                } else if (type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || filename.endsWith('.docx')) {
+                    viewerContent.innerHTML = `<div class="loader"></div>`;
+                    setTimeout(async () => {
+                        try {
+                            const arrayBuffer = await file.file.arrayBuffer();
+                            const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
+                            const previewContainer = document.createElement('div');
+                            previewContainer.className = 'docx-preview-container';
+                            previewContainer.innerHTML = result.value;
+                            viewerContent.innerHTML = '';
+                            viewerContent.appendChild(previewContainer);
+
+                            viewerScrollHandler = () => {
+                                const { scrollTop, scrollHeight, clientHeight } = viewerContent;
+                                if (clientHeight > 0) {
+                                    const totalPages = Math.max(1, Math.ceil(scrollHeight / clientHeight));
+                                    const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 1;
+                                    let currentPage = Math.floor(scrollTop / clientHeight) + 1;
+                                    if (isAtBottom) {
+                                        currentPage = totalPages;
+                                    }
+                                    viewerPageIndicator.textContent = `第 ${currentPage} / ${totalPages} 页 (预估)`;
+                                }
+                            };
+                            viewerContent.addEventListener('scroll', viewerScrollHandler);
+                            viewerScrollHandler();
+
+                        } catch (err) {
+                            console.error('Mammoth.js error:', err);
+                            viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览此DOCX文件。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`;
+                        }
+                    }, 50);
+                } else if (type.startsWith('text/') || type === 'application/json') {
+                    element = document.createElement('pre');
+                    element.textContent = await file.file.text();
+                } else {
+                    viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览此文件类型。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`;
+                }
+                
+                if (element) viewerContent.appendChild(element);
+                showModal(viewerModalOverlay);
+            };
+
+            const hideViewer = () => {
+                hideModal(viewerModalOverlay);
+                viewerContent.innerHTML = '';
+                if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = null;
+
+                if (currentPdfDoc) {
+                    currentPdfDoc.destroy();
+                    currentPdfDoc = null;
+                }
+                
+                if (viewerScrollHandler) {
+                    viewerContent.removeEventListener('scroll', viewerScrollHandler);
+                    viewerScrollHandler = null;
+                }
+            };
             cancelBtn.addEventListener('click', hideNoteModal); noteModalOverlay.addEventListener('click', e => { if (e.target === noteModalOverlay) hideNoteModal(); });
             cancelFileBtn.addEventListener('click', hideFileModal); fileModalOverlay.addEventListener('click', e => { if (e.target === fileModalOverlay) hideFileModal(); });
             confirmYesBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(true); hideConfirmModal(); }); confirmNoBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(false); hideConfirmModal(); });
             infoOkBtn.addEventListener('click', hideInfoModal); infoModalOverlay.addEventListener('click', e => { if (e.target === infoModalOverlay) hideInfoModal(); });
-            closeViewerBtn.addEventListener('click', hideViewer); viewerModalOverlay.addEventListener('click', e => { if (e.target !== viewerHeader && !viewerHeader.contains(e.target)) hideViewer(); });
+            closeViewerBtn.addEventListener('click', hideViewer);
+            viewerModalOverlay.addEventListener('click', e => {
+                if (e.target === viewerModalOverlay) {
+                    hideViewer();
+                }
+            });
             const openSidebar = () => { sidebar.classList.add('open'); sidebarOverlay.classList.add('visible'); };
             const closeSidebar = () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); };
             hamburgerMenu.addEventListener('click', openSidebar); sidebarOverlay.addEventListener('click', closeSidebar); addNoteBtn.addEventListener('click', () => showNoteModal('add'));
