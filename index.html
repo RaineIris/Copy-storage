@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
     <title>文案与文件存放站</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -97,10 +97,32 @@
             border-radius: 6px;
             transition: background-color 0.2s, color 0.2s, opacity 0.2s, border 0.2s;
             text-align: left;
+            overflow: hidden; /* 配合flex-1的ellipsis */
+            display: flex; /* 新增: 为了分组计数 */
+            justify-content: space-between; /* (F3) 修改: 保持两端对齐 (根据你的反馈) */
+            align-items: center; /* 新增: 为了分组计数 */
+        }
+        /* 配合flex, 让文字溢出省略 */
+        #group-list li > span:first-child {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            flex: 1;
         }
+        /* (F3) 修改: 分组计数的样式 */
+        .group-count {
+            font-size: 0.8em; /* (F3) 修改: 调小字体 */
+            color: var(--subtle-text-color);
+            font-weight: normal;
+            margin-left: 6px; /* (F3) 修改: 调小间距 */
+            /* (F3) 移除: background-color, padding, border-radius */
+        }
+        /* (F3) 修改: 移除 active 时的背景色 */
+        #group-list li.active .group-count {
+            color: white;
+            opacity: 0.7; /* (F3) 修改: 调暗一点 */
+        }
+        
         #group-list li.draggable { cursor: grab; }
         #group-list li.draggable:active { cursor: grabbing; }
         #group-list li.active { background-color: var(--button-bg); color: white; font-weight: bold; }
@@ -132,6 +154,83 @@
         #search-box { flex-grow: 1; padding: 10px 15px; font-size: 1em; border: 1px solid var(--border-color); border-radius: 8px; box-sizing: border-box; transition: border-color 0.2s, box-shadow 0.2s; }
         #search-box:focus { outline: none; border-color: var(--button-bg); box-shadow: 0 0 5px hsla(var(--theme-hue), var(--theme-sat), var(--theme-light), 0.5); }
 
+        /* 搜索筛选按钮 (F3) */
+        #search-filter-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--subtle-text-color);
+            font-size: 1em;
+            padding: 7px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        #search-filter-btn:hover {
+            background-color: #f0f0f0;
+            border-color: var(--subtle-text-color);
+        }
+        #search-filter-btn.active {
+            border-color: var(--button-bg);
+            background-color: var(--primary-bg);
+            color: var(--button-bg);
+            font-weight: bold;
+        }
+
+        /* 搜索筛选弹窗 (F3) */
+        #search-filter-modal {
+            position: absolute;
+            top: 75px; /* 调整到 .main-header 下方 */
+            right: 25px;
+            width: 250px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            z-index: 101;
+            display: none;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        #search-filter-modal.visible { display: block; }
+        #search-filter-modal h3 { margin: 0 0 10px 0; font-size: 1.1em; color: var(--text-color); }
+        #search-filter-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 5px;
+            margin-bottom: 10px;
+            background: var(--primary-bg);
+        }
+        #search-filter-list label {
+            display: block;
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        #search-filter-list label:hover { background-color: #f0f0f0; }
+        #search-filter-list input { margin-right: 8px; }
+        .search-filter-actions { display: flex; gap: 10px; }
+        .search-filter-actions button {
+            flex: 1;
+            padding: 6px 10px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #search-filter-apply {
+            background-color: var(--button-bg);
+            color: white;
+            border-color: var(--button-bg);
+        }
+        #search-filter-apply:hover { background-color: var(--button-hover-bg); }
+        #search-filter-clear { background-color: #f1f1f1; color: var(--subtle-text-color); }
+        #search-filter-clear:hover { background-color: #e0e0e0; }
+
+
         #items-container { flex-grow: 1; overflow-y: auto; padding: 30px; padding-bottom: 120px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; align-content: start; }
 
         .note-card, .file-card { background-color: var(--card-bg); border-radius: 10px; padding: 20px; box-shadow: 0 4px 8px var(--shadow-color); display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.2s, box-shadow 0.2s; border: 1px solid var(--border-color); position: relative; }
@@ -145,10 +244,38 @@
         .item-footer { border-top: 1px solid var(--border-color); padding-top: 10px; font-size: 0.9em; color: var(--subtle-text-color); }
         .item-footer .group { background-color: var(--primary-bg); padding: 3px 8px; border-radius: 4px; font-weight: bold; color: var(--theme-color-darker); margin-right: 10px; display: inline-block; transition: background-color 0.3s, color 0.3s; }
 
-        .item-actions { margin-top: 15px; text-align: right; }
-        .item-actions button { background: none; border: none; cursor: pointer; padding: 5px; margin-left: 10px; font-size: 0.9em; color: var(--subtle-text-color); transition: color 0.2s; display: inline-flex; align-items: center; gap: 3px; }
+        /* (F2) 修改: 卡片底部动作栏 */
+        .item-actions {
+            margin-top: 10px;
+            text-align: right;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center; /* (F2) 修改: 垂直居中对齐 */
+            flex-wrap: wrap;
+            gap: 0 10px; /* 按钮间距 */
+        }
+        .item-actions button {
+            background: none; border: none; cursor: pointer; padding: 5px; 
+            margin-left: 0;
+            font-size: 0.9em; color: var(--subtle-text-color); transition: color 0.2s; display: inline-flex; align-items: center; gap: 3px;
+        }
         .item-actions button:hover { color: var(--button-bg); }
         .highlight { background-color: var(--highlight-bg); border-radius: 3px; padding: 0 2px; color: #333; }
+
+        /* (F2) 时间戳样式 */
+        .item-timestamps {
+            font-size: 0.8em;
+            color: var(--subtle-text-color);
+            line-height: 1.4;
+            margin-right: auto; /* 推到最左边 */
+            text-align: left;
+            /* (F1) 移除: padding-bottom: 5px; (真的移除了) */
+        }
+        .item-timestamps .timestamp {
+            white-space: nowrap;
+        }
+        /* (新) 移除: .item-timestamps .timestamp.modified 样式 (不再需要) */
+
 
         .file-info { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; flex-grow: 1; }
         .file-info .icon { font-size: 2.5em; color: var(--button-bg); }
@@ -182,8 +309,8 @@
         .modal-buttons button { flex: 1; text-align: center; padding: 10px 15px; border-radius: 8px; border: 1px solid; font-size: 1em; font-weight: bold; cursor: pointer; transition: background-color 0.3s, color 0.2s, transform 0.1s, border-color 0.3s; }
         .modal-buttons button:active { transform: scale(0.98); }
 
-        #save-note-btn, #info-ok-btn, #save-file-btn, #import-select-file-btn { background-color: var(--button-bg); color: white; border-color: var(--button-bg); }
-        #save-note-btn:hover, #info-ok-btn:hover, #save-file-btn:hover, #import-select-file-btn:hover { background-color: var(--button-hover-bg); border-color: var(--button-hover-bg); }
+        #save-note-btn, #info-ok-btn, #save-file-btn, #import-select-file-btn, #html-viewer-close-btn { background-color: var(--button-bg); color: white; border-color: var(--button-bg); }
+        #save-note-btn:hover, #info-ok-btn:hover, #save-file-btn:hover, #import-select-file-btn:hover, #html-viewer-close-btn:hover { background-color: var(--button-hover-bg); border-color: var(--button-hover-bg); }
         #cancel-btn, #import-options-cancel-btn, #cancel-file-btn { background-color: #f1f1f1; color: var(--subtle-text-color); border-color: var(--border-color); }
         #cancel-btn:hover, #import-options-cancel-btn:hover, #cancel-file-btn:hover { background-color: #e0e0e0; }
         
@@ -302,13 +429,41 @@
         .docx-preview-container table { border-collapse: collapse; width: 100%; margin-bottom: 1.5em; font-size: 0.95em; }
         .docx-preview-container td, .docx-preview-container th { border: 1px solid #cccccc; padding: 10px 12px; text-align: left; }
         .docx-preview-container th { background-color: #f3f3f3; font-weight: bold; }
+
+        /* HTML 预览弹窗样式 (F4) */
+#html-viewer-modal {
+    max-width: 95vw; /* (新) 修改: 80vw -> 95vw，让弹窗更宽 */
+    width: 800px;
+    padding: 20px;   /* (新) 新增: 覆盖 .modal 的 30px 40px padding */
+}
+        #html-viewer-content {
+            /* (F1) 移除: min-height: 400px; (真的移除了) */
+            max-height: 70vh;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0;
+            line-height: var(--line-height);
+            position: relative; /* (F1) 新增: 修正样式错位问题 */
+        }
     </style>
 </head>
 <body>
 
     <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div id="preset-colors"></div> <div class="custom-color-wrapper"> <label for="custom-color-picker">自定义</label> <input type="color" id="custom-color-picker" value="#4069bf"> </div> </div> </aside>
     <div id="sidebar-overlay"></div>
-    <div class="container"> <main class="main-content"> <header class="main-header"> <span id="hamburger-menu">☰</span> <input type="search" id="search-box" placeholder="搜索内容、文件名、分组、备注..."> </header> <div id="items-container"></div> </main> </div>
+    <div class="container"> <main class="main-content"> <header class="main-header"> <span id="hamburger-menu">☰</span> <input type="search" id="search-box" placeholder="搜索内容、文件名、分组、备注..."> <button id="search-filter-btn" title="按分组筛选">▽</button> </header> <div id="items-container"></div> </main> </div>
+    
+    <div id="search-filter-modal" class="search-filter-modal">
+        <h3>按分组筛选</h3>
+        <div id="search-filter-list"></div>
+        <div class="search-filter-actions">
+            <button id="search-filter-clear">清除</button>
+            <button id="search-filter-apply">应用</button>
+        </div>
+    </div>
+
     <button id="add-note-btn">+</button>
     <div class="modal-overlay" id="note-modal-overlay"> <div class="modal" id="note-modal"> <h3 id="modal-title">添加新文案</h3> <form id="note-form"> <input type="hidden" id="note-id"> <div class="form-group"> <label for="note-content">内容 (必填)</label> <textarea id="note-content" required></textarea> </div> <div class="form-group group-form-group"> <label for="note-group">分组</label> <div class="group-input-wrapper"><input type="text" id="note-group" placeholder="输入新分组" autocomplete="off"><button type="button" class="group-dropdown-toggle">▼</button></div> <div id="note-group-dropdown" class="group-dropdown"></div> </div> <div class="form-group"> <label for="note-remark">备注</label> <input type="text" id="note-remark" placeholder="例如：这是一个转盘"> </div> <div class="form-divider"><span>或</span></div> <div class="form-group"> <label>存放文件</label> <button type="button" id="upload-file-btn">点击选择文件</button> <input type="file" id="file-input" style="display: none;"> </div> <div class="modal-buttons"> <button type="button" id="cancel-btn">取消</button> <button type="submit" id="save-note-btn">保存</button> </div> </form> </div> </div>
     <div class="modal-overlay" id="file-modal-overlay"> <div class="modal" id="file-modal"> <h3 id="file-modal-title">文件详情</h3> <form id="file-form"> <input type="hidden" id="file-id"> <div class="form-group"> <label for="file-name-display">文件名</label> <input type="text" id="file-name-display" required> </div> <div class="form-group group-form-group"> <label for="file-group">分组</label> <div class="group-input-wrapper"><input type="text" id="file-group" placeholder="输入新分组" autocomplete="off"><button type="button" class="group-dropdown-toggle">▼</button></div> <div id="file-group-dropdown" class="group-dropdown"></div> </div> <div class="form-group"> <label for="file-remark">备注</label> <input type="text" id="file-remark" placeholder="添加备注..."> </div> <div class="modal-buttons"> <button type="button" id="cancel-file-btn">取消</button> <button type="submit" id="save-file-btn">保存文件</button> </div> </form> </div> </div>
@@ -318,6 +473,17 @@
     <div class="modal-overlay" id="viewer-modal-overlay"> <div id="viewer-header"> <span id="viewer-filename"></span> <span id="close-viewer-btn">&times;</span> </div> <div id="viewer-content"></div> <div id="viewer-footer"> <span id="viewer-page-indicator"></span> </div> </div>
     <div class="copy-feedback" id="copy-feedback">已复制！</div>
 
+    <div class="modal-overlay" id="html-viewer-overlay">
+        <div class="modal" id="html-viewer-modal">
+            <h3>HTML 预览</h3>
+            <div id="html-viewer-content"></div>
+            <div class="modal-buttons">
+                <button id="html-viewer-close-btn" style="flex: 0.5;">关闭</button>
+            </div>
+        </div>
+    </div>
+
+
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             // --- IndexedDB 数据库设置 ---
@@ -326,50 +492,309 @@
             function getStore(mode) { return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME); }
             const dbActions = { add: (item) => new Promise((res, rej) => { const r = getStore('readwrite').add(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), getAll: () => new Promise((res, rej) => { const r = getStore('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), update: (item) => new Promise((res, rej) => { const r = getStore('readwrite').put(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), delete: (id) => new Promise((res, rej) => { const r = getStore('readwrite').delete(id); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), clear: () => new Promise((res, rej) => { const r = getStore('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), };
             
-            // --- DOM 元素获取 ---
+            // --- DOM 元素获取 (新增 F3 和 F4 的元素) ---
             const docBody = document.body, docRoot = document.documentElement, itemsContainer = document.getElementById('items-container'), groupList = document.getElementById('group-list'), searchBox = document.getElementById('search-box'), addNoteBtn = document.getElementById('add-note-btn'), noteModalOverlay = document.getElementById('note-modal-overlay'), noteForm = document.getElementById('note-form'), modalTitle = document.getElementById('modal-title'), cancelBtn = document.getElementById('cancel-btn'), noteIdInput = document.getElementById('note-id'), noteContentInput = document.getElementById('note-content'), noteGroupInput = document.getElementById('note-group'), noteRemarkInput = document.getElementById('note-remark'), noteGroupDropdown = document.getElementById('note-group-dropdown'), uploadFileBtn = document.getElementById('upload-file-btn'), fileInput = document.getElementById('file-input'), fileModalOverlay = document.getElementById('file-modal-overlay'), fileForm = document.getElementById('file-form'), fileModalTitle = document.getElementById('file-modal-title'), fileIdInput = document.getElementById('file-id'), fileNameDisplay = document.getElementById('file-name-display'), fileGroupInput = document.getElementById('file-group'), fileRemarkInput = document.getElementById('file-remark'), fileGroupDropdown = document.getElementById('file-group-dropdown'), cancelFileBtn = document.getElementById('cancel-file-btn'), confirmModalOverlay = document.getElementById('confirm-modal-overlay'), confirmModalText = document.getElementById('confirm-modal-text'), confirmYesBtn = document.getElementById('confirm-yes'), confirmNoBtn = document.getElementById('confirm-no'), infoModalOverlay = document.getElementById('info-modal-overlay'), infoModalText = document.getElementById('info-modal-text'), infoOkBtn = document.getElementById('info-ok-btn'), importBtn = document.getElementById('import-btn'), exportBtn = document.getElementById('export-btn'), importFileInput = document.getElementById('import-file-input'), importOptionsModalOverlay = document.getElementById('import-options-modal-overlay'), importSelectFileBtn = document.getElementById('import-select-file-btn'), importOptionsCancelBtn = document.getElementById('import-options-cancel-btn'), hamburgerMenu = document.getElementById('hamburger-menu'), sidebar = document.getElementById('sidebar'), sidebarOverlay = document.getElementById('sidebar-overlay'), copyFeedback = document.getElementById('copy-feedback'), presetColorsContainer = document.getElementById('preset-colors'), customColorPicker = document.getElementById('custom-color-picker'), viewerModalOverlay = document.getElementById('viewer-modal-overlay'), viewerHeader = document.getElementById('viewer-header'), viewerFilename = document.getElementById('viewer-filename'), closeViewerBtn = document.getElementById('close-viewer-btn'), viewerContent = document.getElementById('viewer-content'), viewerPageIndicator = document.getElementById('viewer-page-indicator');
+            // 新增 (F3)
+            const searchFilterBtn = document.getElementById('search-filter-btn'), searchFilterModal = document.getElementById('search-filter-modal'), searchFilterList = document.getElementById('search-filter-list'), searchFilterClear = document.getElementById('search-filter-clear'), searchFilterApply = document.getElementById('search-filter-apply');
+            // 新增 (F4)
+            const htmlViewerOverlay = document.getElementById('html-viewer-overlay'), htmlViewerContent = document.getElementById('html-viewer-content'), htmlViewerCloseBtn = document.getElementById('html-viewer-close-btn');
 
-            // --- 数据与状态 ---
+            // --- 数据与状态 (新增 F3 的状态) ---
             let notes = [], files = [], groupOrder = [], currentFilterGroup = 'all', confirmCallback = null, tempFile = null, currentObjectUrl = null;
             let currentPdfDoc = null;
             let viewerScrollHandler = null;
+            let searchFilterGroups = []; // 新增 (F3)
 
             // --- 主题美化 ---
             const presetThemes = [ { name: '默认 · 宝蓝', hue: 215, sat: 50, light: 50, value: '#4069bf' }, { name: '草莓奶昔', hue: 345, sat: 80, light: 88, value: '#fcdbe4' }, { name: '奶油黄', hue: 55, sat: 75, light: 75, value: '#f2e6a4' }, { name: '薄荷马卡龙', hue: 150, sat: 55, light: 85, value: '#c7f2de' }, { name: '海盐冰淇淋', hue: 195, sat: 70, light: 82, value: '#bce6f7' }, { name: '香芋布丁', hue: 260, sat: 65, light: 88, value: '#e6dff9' }, { name: '蜜桃苏打', hue: 20, sat: 90, light: 80, value: '#fcd3c4' }, { name: '宝宝蓝', hue: 210, sat: 70, light: 80, value: '#b8d6f5' }, { name: '抹茶拿铁', hue: 95, sat: 35, light: 80, value: '#d5e6c7' }, { name: '焦糖饼干', hue: 30, sat: 50, light: 75, value: '#e6ccb3' }, ];
             const applyTheme = (h, s, l) => { docRoot.style.setProperty('--theme-hue', h); docRoot.style.setProperty('--theme-sat', `${s}%`); docRoot.style.setProperty('--theme-light', `${l}%`); localStorage.setItem('theme', JSON.stringify({ hue: h, sat: s, light: l })); };
             const loadTheme = () => { const t = JSON.parse(localStorage.getItem('theme')) || presetThemes[0]; applyTheme(t.hue, t.sat, t.light); presetColorsContainer.innerHTML = ''; presetThemes.forEach(theme => { const d = document.createElement('div'); d.className = 'preset-dot'; d.style.backgroundColor = theme.value; d.title = theme.name; d.addEventListener('click', () => applyTheme(theme.hue, theme.sat, theme.light)); presetColorsContainer.appendChild(d); }); };
 
+            // --- 新增辅助函数 (F2, F4) ---
+            /** (F2) 格式化时间戳 */
+            const formatTimestamp = (isoString) => {
+                if (!isoString) return '';
+                try {
+                    const d = new Date(isoString);
+                    // 补全 YYYY-MM-DD HH:MM:SS 格式
+                    return d.toLocaleString('zh-CN', {
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                        hour12: false
+                    }).replace(/\//g, '-');
+                } catch(e) {
+                    console.error('Invalid timestamp:', isoString, e);
+                    return '';
+                }
+            };
+            /** (F4) 检查是否包含HTML */
+            const containsHTML = (str) => /<[a-z][\s\S]*>/i.test(str);
+
             // --- 数据管理 ---
             const saveNotes = () => localStorage.setItem('notes-app-data', JSON.stringify(notes));
             const saveGroupOrder = () => localStorage.setItem('group-order-data', JSON.stringify(groupOrder));
             const getAllGroups = () => { const ng = notes.map(n => n.group?.trim()); const fg = files.map(f => f.group?.trim()); return [...new Set([...ng, ...fg].filter(g => g))]; };
+            const saveSearchFilter = () => localStorage.setItem('search-filter-groups', JSON.stringify(searchFilterGroups)); // 新增 (F3)
 
             // --- 渲染函数 ---
+            
+            /** (F1, F3) renderGroups (已修改) - 增加分组计数 (F1), 调整样式 (F3) */
             const renderGroups = () => {
                 const allGroups = getAllGroups();
                 groupOrder = groupOrder.filter(g => allGroups.includes(g));
                 allGroups.forEach(g => { if (!groupOrder.includes(g)) groupOrder.push(g); });
                 saveGroupOrder();
 
+                // (F1) 新增: 计算所有分组的数量
+                const all = [...notes, ...files];
+                const groupCounts = {
+                    'all': all.length,
+                    'notes_only': notes.length,
+                    'files_only': files.length
+                };
+                all.forEach(item => {
+                    if (item.group) {
+                        groupCounts[item.group] = (groupCounts[item.group] || 0) + 1;
+                    }
+                });
+
                 groupList.innerHTML = '';
                 const staticGroups = [ { key: 'all', text: '所有条目' }, { key: 'notes_only', text: '文案' }, { key: 'files_only', text: '文件' } ];
-                staticGroups.forEach(g => { const li = document.createElement('li'); li.dataset.group = g.key; li.textContent = g.text; if (g.key === currentFilterGroup) li.classList.add('active'); groupList.appendChild(li); });
-                if (groupOrder.length > 0) { const d = document.createElement('div'); d.className = 'divider'; groupList.appendChild(d); groupOrder.forEach(g => { const li = document.createElement('li'); li.dataset.group = g; li.textContent = g; li.draggable = true; li.classList.add('draggable'); if (g === currentFilterGroup) li.classList.add('active'); groupList.appendChild(li); }); }
+                
+                staticGroups.forEach(g => {
+                    const li = document.createElement('li');
+                    li.dataset.group = g.key;
+                    // (F1, F3) 修改: 插入 span 和 count
+                    li.innerHTML = `<span>${g.text}</span> <span class="group-count">${groupCounts[g.key] || 0}</span>`;
+                    if (g.key === currentFilterGroup) li.classList.add('active');
+                    groupList.appendChild(li);
+                });
+                
+                if (groupOrder.length > 0) {
+                    const d = document.createElement('div'); d.className = 'divider';
+                    groupList.appendChild(d);
+                    groupOrder.forEach(g => {
+                        const li = document.createElement('li');
+                        li.dataset.group = g;
+                        // (F1, F3) 修改: 插入 span 和 count
+                        li.innerHTML = `<span>${g}</span> <span class="group-count">${groupCounts[g] || 0}</span>`;
+                        li.draggable = true;
+                        li.classList.add('draggable');
+                        if (g === currentFilterGroup) li.classList.add('active');
+                        groupList.appendChild(li);
+                    });
+                }
             };
+
             const applyCollapsibleLogic = () => { const allContentDivs = itemsContainer.querySelectorAll('.note-content'); allContentDivs.forEach(div => { const computedStyle = getComputedStyle(div); const lineHeight = parseFloat(computedStyle.lineHeight); if (div.scrollHeight > (lineHeight * 5)) { div.classList.add('collapsible'); } }); };
-            const renderItems = () => { const all = [...notes, ...files].sort((a, b) => b.id - a.id); const term = searchBox.value.trim().toLowerCase(); const filtered = all.filter(i => { const groupMatch = currentFilterGroup === 'all' || (currentFilterGroup === 'notes_only' && i.type === 'note') || (currentFilterGroup === 'files_only' && i.type === 'file') || i.group === currentFilterGroup; if (!groupMatch) return false; if (term === '') return true; if (i.type === 'note') { return (i.content?.toLowerCase().includes(term)) || (i.group?.toLowerCase().includes(term)) || (i.remark?.toLowerCase().includes(term)); } else { return (i.filename?.toLowerCase().includes(term)) || (i.group?.toLowerCase().includes(term)) || (i.remark?.toLowerCase().includes(term)); } }); itemsContainer.innerHTML = ''; if (filtered.length === 0) { itemsContainer.innerHTML = '<p style="color: var(--subtle-text-color); grid-column: 1 / -1; text-align: center; margin-top: 50px;">没有找到匹配的条目哦。</p>'; } else { filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, term) : createFileCard(i, term))); } applyCollapsibleLogic(); };
+            
+            /** (F3) renderItems (已修改) - 增加搜索筛选逻辑 */
+            const renderItems = () => {
+                const all = [...notes, ...files].sort((a, b) => b.id - a.id);
+                const term = searchBox.value.trim().toLowerCase();
+                
+                const filtered = all.filter(i => {
+                    // 1. 侧边栏分组筛选 (视图)
+                    const sidebarGroupMatch = currentFilterGroup === 'all' || (currentFilterGroup === 'notes_only' && i.type === 'note') || (currentFilterGroup === 'files_only' && i.type === 'file') || i.group === currentFilterGroup;
+                    if (!sidebarGroupMatch) return false;
+
+                    // 2. 搜索框分组筛选 (F3)
+                    const searchGroupMatch = searchFilterGroups.length === 0 || (i.group && searchFilterGroups.includes(i.group));
+                    if (!searchGroupMatch) return false;
+
+                    // 3. 搜索框文字筛选
+                    if (term === '') return true; // 通过了所有分组筛选，且没有文字，则显示
+                    if (i.type === 'note') {
+                        return (i.content?.toLowerCase().includes(term)) || (i.group?.toLowerCase().includes(term)) || (i.remark?.toLowerCase().includes(term));
+                    } else {
+                        return (i.filename?.toLowerCase().includes(term)) || (i.group?.toLowerCase().includes(term)) || (i.remark?.toLowerCase().includes(term));
+                    }
+                });
+
+                itemsContainer.innerHTML = '';
+                if (filtered.length === 0) {
+                    itemsContainer.innerHTML = '<p style="color: var(--subtle-text-color); grid-column: 1 / -1; text-align: center; margin-top: 50px;">没有找到匹配的条目哦。</p>';
+                } else {
+                    filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, term) : createFileCard(i, term)));
+                }
+                applyCollapsibleLogic();
+            };
+
             const escapeHTML = (str) => { const p = document.createElement('p'); p.textContent = str; return p.innerHTML; };
             const highlightText = (text, term) => { const safeText = escapeHTML(text || ''); if (!term) return safeText; const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); return safeText.replace(regex, match => `<mark class="highlight">${match}</mark>`); };
-            function createNoteCard(note, term) { const c = document.createElement('div'); c.className = 'note-card'; c.dataset.id = note.id; c.dataset.type = 'note'; c.innerHTML = `<div class="note-content">${highlightText(note.content, term)}</div><div><div class="item-footer">${note.group ? `<span class="group">${highlightText(note.group || '', term)}</span>` : ''}<span>${highlightText(note.remark || '', term)}</span></div><div class="item-actions"><button class="copy-btn">复制</button><button class="edit-btn">编辑</button><button class="delete-btn">删除</button></div></div>`; return c; }
-            function createFileCard(file, term) { const c = document.createElement('div'); c.className = 'file-card'; c.dataset.id = file.id; c.dataset.type = 'file'; const size = file.file ? `${(file.file.size / 1024).toFixed(2)} KB` : 'N/A'; c.innerHTML = `<div class="file-info"><span class="icon">📄</span><div class="file-details"><div class="filename">${highlightText(file.filename, term)}</div><div class="file-size">${size}</div></div></div><div><div class="item-footer">${file.group ? `<span class="group">${highlightText(file.group || '', term)}</span>` : ''}<span>${highlightText(file.remark || '', term)}</span></div><div class="item-actions"><button class="download-btn">下载</button><button class="edit-btn">编辑</button><button class="delete-btn">删除</button></div></div>`; return c; }
+            
+            /** (新) createNoteCard (已修改) - 移除“编辑于” */
+            function createNoteCard(note, term) {
+                const c = document.createElement('div');
+                c.className = 'note-card'; c.dataset.id = note.id; c.dataset.type = 'note';
+                
+                // (新) 构造时间戳HTML (只显示创建)
+                const createdAt = note.createdAt ? formatTimestamp(note.createdAt) : formatTimestamp(new Date(note.id).toISOString()); // 兼容旧数据
+                const timestampsHTML = `<div class="item-timestamps">
+                    ${createdAt ? `<div class="timestamp">${createdAt}</div>` : ''}
+                </div>`;
+                
+                // (F4) 检查是否有HTML
+                const hasHTML = containsHTML(note.content);
+                // (F2) 修改: 替换emoji为文字
+                const previewBtnHTML = hasHTML ? `<button class="preview-btn" title="预览HTML">预览</button>` : '';
+
+                c.innerHTML = `
+                    <div class="note-content">${highlightText(note.content, term)}</div>
+                    <div>
+                        <div class="item-footer">${note.group ? `<span class="group">${highlightText(note.group || '', term)}</span>` : ''}<span>${highlightText(note.remark || '', term)}</span></div>
+                        <div class="item-actions">
+                            ${timestampsHTML} ${previewBtnHTML} <button class="copy-btn">复制</button>
+                            <button class="edit-btn">编辑</button>
+                            <button class="delete-btn">删除</button>
+                        </div>
+                    </div>`;
+                return c;
+            }
+
+            /** (新) createFileCard (已修改) - 移除“编辑于” */
+            function createFileCard(file, term) {
+                const c = document.createElement('div');
+                c.className = 'file-card'; c.dataset.id = file.id; c.dataset.type = 'file';
+                const size = file.file ? `${(file.file.size / 1024).toFixed(2)} KB` : 'N/A';
+                
+                // (新) 构造时间戳HTML (只显示创建)
+                const createdAt = file.createdAt ? formatTimestamp(file.createdAt) : ''; // 文件id不是时间戳, 不做兼容
+                const timestampsHTML = `<div class="item-timestamps">
+                    ${createdAt ? `<div class="timestamp">${createdAt}</div>` : ''}
+                </div>`;
+
+                c.innerHTML = `
+                    <div class="file-info"><span class="icon">📄</span><div class="file-details"><div class="filename">${highlightText(file.filename, term)}</div><div class="file-size">${size}</div></div></div>
+                    <div>
+                        <div class="item-footer">${file.group ? `<span class="group">${highlightText(file.group || '', term)}</span>` : ''}<span>${highlightText(file.remark || '', term)}</span></div>
+                        <div class="item-actions">
+                            ${timestampsHTML} <button class="download-btn">下载</button>
+                            <button class="edit-btn">编辑</button>
+                            <button class="delete-btn">删除</button>
+                        </div>
+                    </div>`;
+                return c;
+            }
+            
             const renderGroupDropdown = (input, dropdown) => { const f = input.value.toLowerCase(); const g = getAllGroups().filter(grp => grp.toLowerCase().includes(f)); dropdown.innerHTML = ''; if (g.length > 0) { [...new Set(g)].forEach(grp => { const i = document.createElement('div'); i.className = 'dropdown-item'; i.textContent = grp; i.addEventListener('mousedown', () => { input.value = grp; dropdown.classList.remove('visible'); }); dropdown.appendChild(i); }); dropdown.classList.add('visible'); } else { dropdown.classList.remove('visible'); } };
             
             // --- 事件处理 ---
-            noteForm.addEventListener('submit', (e) => { e.preventDefault(); const id = noteIdInput.value; const content = noteContentInput.value.trim(); if (!content) { showInfoModal('内容不能为空哦！'); return; } const d = { type: 'note', content, group: noteGroupInput.value.trim(), remark: noteRemarkInput.value.trim() }; if (id) { const idx = notes.findIndex(n => n.id == id); if (idx > -1) notes[idx] = { ...notes[idx], ...d }; } else { notes.unshift({ id: Date.now(), ...d }); } saveNotes(); refreshUI(); hideNoteModal(); });
-            fileForm.addEventListener('submit', async (e) => { e.preventDefault(); const filename = fileNameDisplay.value.trim(); if (!filename) { showInfoModal('文件名不能为空！'); return; } const id = parseInt(fileIdInput.value, 10); const d = { type: 'file', filename, group: fileGroupInput.value.trim(), remark: fileRemarkInput.value.trim() }; if (id) { const ef = files.find(f => f.id === id); await dbActions.update({ ...ef, ...d }); } else { if (!tempFile) { showInfoModal('文件不存在，请重新选择。'); return; } d.file = tempFile; await dbActions.add(d); } tempFile = null; await refreshUI(); hideFileModal(); });
+            
+            /** (新) noteForm submit (已修改) - 移除 modifiedAt */
+            noteForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = noteIdInput.value;
+                const content = noteContentInput.value.trim();
+                if (!content) { showInfoModal('内容不能为空哦！'); return; }
+                const d = { type: 'note', content, group: noteGroupInput.value.trim(), remark: noteRemarkInput.value.trim() };
+                
+                if (id) {
+                    const idx = notes.findIndex(n => n.id == id);
+                    if (idx > -1) {
+                        notes[idx] = { ...notes[idx], ...d }; // (新) 移除 modifiedAt
+                    }
+                } else {
+                    const newNote = { id: Date.now(), createdAt: new Date().toISOString(), ...d }; // (F2) 新增 createdAt
+                    notes.unshift(newNote);
+                }
+                saveNotes();
+                refreshUI();
+                hideNoteModal();
+            });
+
+            /** (新) fileForm submit (已修改) - 移除 modifiedAt */
+            fileForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const filename = fileNameDisplay.value.trim();
+                if (!filename) { showInfoModal('文件名不能为空！'); return; }
+                const id = parseInt(fileIdInput.value, 10);
+                const d = { type: 'file', filename, group: fileGroupInput.value.trim(), remark: fileRemarkInput.value.trim() };
+                
+                if (id) {
+                    const ef = files.find(f => f.id === id);
+                    // (新) 移除 d.modifiedAt
+                    await dbActions.update({ ...ef, ...d });
+                } else {
+                    if (!tempFile) { showInfoModal('文件不存在，请重新选择。'); return; }
+                    d.file = tempFile;
+                    d.createdAt = new Date().toISOString(); // (F2) 新增 createdAt
+                    await dbActions.add(d);
+                }
+                tempFile = null;
+                await refreshUI();
+                hideFileModal();
+            });
+
             uploadFileBtn.addEventListener('click', () => fileInput.click());
             fileInput.addEventListener('change', (e) => { const f = e.target.files[0]; if (!f) return; tempFile = f; hideNoteModal(); showFileModal('add'); });
-            itemsContainer.addEventListener('click', async (e) => { const card = e.target.closest('.note-card, .file-card'); if (!card) return; const id = parseInt(card.dataset.id, 10); const type = card.dataset.type; const targetIsActionButton = e.target.closest('.item-actions'); const targetIsCollapsible = e.target.closest('.note-content.collapsible'); if (targetIsCollapsible) { if (targetIsCollapsible.classList.contains('expanded')) { targetIsCollapsible.classList.remove('expanded'); targetIsCollapsible.style.maxHeight = null; } else { targetIsCollapsible.classList.add('expanded'); targetIsCollapsible.style.maxHeight = targetIsCollapsible.scrollHeight + 'px'; } return; } if (type === 'file' && !targetIsActionButton) { const file = files.find(f => f.id === id); if(file) showViewer(file); return; } if (targetIsActionButton) { const btn = e.target.closest('button'); if (!btn) return; if (btn.classList.contains('delete-btn')) { showConfirmModal(type === 'note' ? '确定要删除这条文案吗？' : '确定要删除这个文件吗？', async (c) => { if (c) { if (type === 'note') { notes = notes.filter(n => n.id !== id); saveNotes(); } else { await dbActions.delete(id); } await refreshUI(); } }, { danger: true, yesText: '删除' }); } else if (btn.classList.contains('edit-btn')) { if (type === 'note') { const n = notes.find(n => n.id === id); if (n) showNoteModal('edit', n); } else { const f = files.find(f => f.id === id); if (f) showFileModal('edit', f); } } else if (btn.classList.contains('copy-btn')) { const n = notes.find(n => n.id === id); if (n) copyToClipboard(n.content); } else if (btn.classList.contains('download-btn')) { const f = files.find(f => f.id === id); if (f?.file) { const url = URL.createObjectURL(f.file); const a = document.createElement('a'); a.href = url; a.download = f.filename; a.click(); URL.revokeObjectURL(url); } } } });
+            
+            /** (F4) itemsContainer click (已修改) - 增加预览按钮事件 */
+            itemsContainer.addEventListener('click', async (e) => {
+                const card = e.target.closest('.note-card, .file-card');
+                if (!card) return;
+                const id = parseInt(card.dataset.id, 10);
+                const type = card.dataset.type;
+                const targetIsActionButton = e.target.closest('.item-actions');
+                const targetIsCollapsible = e.target.closest('.note-content.collapsible');
+                
+                if (targetIsCollapsible) {
+                    if (targetIsCollapsible.classList.contains('expanded')) {
+                        targetIsCollapsible.classList.remove('expanded');
+                        targetIsCollapsible.style.maxHeight = null;
+                    } else {
+                        targetIsCollapsible.classList.add('expanded');
+                        targetIsCollapsible.style.maxHeight = targetIsCollapsible.scrollHeight + 'px';
+                    }
+                    return;
+                }
+                if (type === 'file' && !targetIsActionButton) {
+                    const file = files.find(f => f.id === id);
+                    if(file) showViewer(file);
+                    return;
+                }
+                if (targetIsActionButton) {
+                    const btn = e.target.closest('button');
+                    if (!btn) return;
+                    if (btn.classList.contains('delete-btn')) {
+                        showConfirmModal(type === 'note' ? '确定要删除这条文案吗？' : '确定要删除这个文件吗？', async (c) => {
+                            if (c) {
+                                if (type === 'note') {
+                                    notes = notes.filter(n => n.id !== id);
+                                    saveNotes();
+                                } else {
+                                    await dbActions.delete(id);
+                                }
+                                await refreshUI();
+                            }
+                        }, { danger: true, yesText: '删除' });
+                    } else if (btn.classList.contains('edit-btn')) {
+                        if (type === 'note') {
+                            const n = notes.find(n => n.id === id);
+                            if (n) showNoteModal('edit', n);
+                        } else {
+                            const f = files.find(f => f.id === id);
+                            if (f) showFileModal('edit', f);
+                        }
+                    } else if (btn.classList.contains('copy-btn')) {
+                        const n = notes.find(n => n.id === id);
+                        if (n) copyToClipboard(n.content);
+                    } else if (btn.classList.contains('download-btn')) {
+                        const f = files.find(f => f.id === id);
+                        if (f?.file) {
+                            const url = URL.createObjectURL(f.file);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = f.filename;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        }
+                    } else if (btn.classList.contains('preview-btn')) { // (F4) 新增
+                        const n = notes.find(n => n.id === id);
+                        if (n) showHtmlViewer(n.content);
+                    }
+                }
+            });
             
             // --- 导入/导出功能 ---
             const blobToBase64 = b => new Promise((res, rej) => { const r = new FileReader(); r.readAsDataURL(b); r.onload = () => res(r.result); r.onerror = e => rej(e); });
@@ -378,7 +803,7 @@
             importBtn.addEventListener('click', () => showModal(importOptionsModalOverlay));
             importOptionsCancelBtn.addEventListener('click', () => hideModal(importOptionsModalOverlay));
             importSelectFileBtn.addEventListener('click', () => { hideModal(importOptionsModalOverlay); importFileInput.click(); });
-            importFileInput.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (event) => { try { const parsedData = JSON.parse(event.target.result); let iN, iF, iGo, iT; if (Array.isArray(parsedData)) { iN = parsedData; iF = []; iGo = []; iT = null; } else { iN = parsedData.notes || []; iF = parsedData.files || []; iGo = parsedData.groupOrder || []; iT = parsedData.theme; } const mode = document.querySelector('input[name="import-mode"]:checked').value; const handleOverwrite = async () => { notes = iN; groupOrder = iGo; saveNotes(); saveGroupOrder(); await dbActions.clear(); for (const f of iF) { f.file = await base64ToBlob(f.file); delete f.id; await dbActions.add(f); } if (iT) { applyTheme(iT.hue, iT.sat, iT.light); loadTheme(); } await refreshUI(); showInfoModal('数据已成功覆盖！'); }; if (mode === 'overwrite') { showConfirmModal('此操作将覆盖所有文案和文件，确定吗？', (c) => { if (c) handleOverwrite(); }, { danger: true, yesText: '确定覆盖' }); } else { const existingNoteContents = new Set(notes.map(n => n.content)); const nonDuplicateNotes = iN.filter(n => !existingNoteContents.has(n.content)); const existingFilenames = new Set(files.map(f => f.filename)); const nonDuplicateFiles = iF.filter(f => !existingFilenames.has(f.filename)); const dupCount = (iN.length - nonDuplicateNotes.length) + (iF.length - nonDuplicateFiles.length); const handleAppend = async (addAll) => { const notesToAdd = addAll ? iN : nonDuplicateNotes; const filesToAdd = addAll ? iF : nonDuplicateFiles; notes.push(...notesToAdd); iGo.forEach(g => { if(!groupOrder.includes(g)) groupOrder.push(g) }); saveNotes(); saveGroupOrder(); for (const f of filesToAdd) { f.file = await base64ToBlob(f.file); delete f.id; await dbActions.add(f); } await refreshUI(); showInfoModal(`${notesToAdd.length + filesToAdd.length}个新项目已成功添加！`); }; if (dupCount > 0) { showConfirmModal(`发现 ${dupCount} 个重复项目。`, c => handleAppend(c), { yesText: '全部添加', noText: '跳过重复' }); } else { handleAppend(false); } } } catch (err) { showInfoModal('导入失败！请确保是正确的备份文件。'); console.error(err); } finally { e.target.value = ''; closeSidebar(); } }; reader.readAsText(file); });
+            importFileInput.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (event) => { try { const parsedData = JSON.parse(event.target.result); let iN, iF, iGo, iT; if (Array.isArray(parsedData)) { iN = parsedData; iF = []; iGo = []; iT = null; } else { iN = parsedData.notes || []; iF = parsedData.files || []; iGo = parsedData.groupOrder || []; iT = parsedData.theme; } const mode = document.querySelector('input[name="import-mode"]:checked').value; const handleOverwrite = async () => { notes = iN; groupOrder = iGo; saveNotes(); saveGroupOrder(); await dbActions.clear(); for (const f of iF) { f.file = await base64ToBlob(f.file); delete f.id; await dbActions.add(f); } if (iT) { applyTheme(iT.hue, iT.sat, iT.light); loadTheme(); } await refreshUI(); showInfoModal('数据已成功覆盖！'); }; if (mode === 'overwrite') { showConfirmModal('此操作将覆盖所有文案和文件，确定吗？', (c) => { if (c) handleOverwrite(); }, { danger: true, yesText: '确定覆盖' }); } else { const existingNoteContents = new Set(notes.map(n => n.content)); const nonDuplicateNotes = iN.filter(n => !existingNoteContents.has(n.content)); const existingFilenames = new Set(files.map(f => f.filename)); const nonDuplicateFiles = iF.filter(f => !existingFilenames.has(f.filename)); const dupCount = (iN.length - nonDuplicateNotes.length) + (iF.length - nonDuplicateFiles.length); const handleAppend = async (addAll) => { const notesToAdd = addAll ? iN : nonDuplicateNotes; const filesToAdd = addAll ? iF : nonDuplicateFiles; notes.push(...notesToAdd); iGo.forEach(g => { if(!groupOrder.includes(g)) groupOrder.push(g) }); saveNotes(); saveGroupOrder(); for (const f of filesToAdd) { f.file = await base64ToBlob(f.file); delete f.id; await dbActions.add(f); } await refreshUI(); showInfoModal(`${notesToAdd.length + filesToAdd.length}个新项目已成功添加！`); }; if (dupCount > 0) { showConfirmModal(`发现 ${dupCount} 个重复项目。`, c => handleAppend(c), { yesText: '全部添加', noText: '跳过重复' }); } else { handleAppend(false); } } } catch (err) { showInfoModal('导入失败！请确保是正确的备份文件。'); console.error(err); } finally { e.target.value = ''; closeSidebar(); } }; reader.readText(file); });
             
             // --- 弹窗、侧边栏、预览等UI控制 ---
             const showModal = (o) => { o.classList.add('visible'); docBody.classList.add('modal-open'); };
@@ -392,6 +817,126 @@
             const showInfoModal = (msg) => { infoModalText.textContent = msg; showModal(infoModalOverlay); };
             const hideInfoModal = () => hideModal(infoModalOverlay);
             
+            /** (F4) 新增: HTML 预览弹窗控制 (已修改为iframe沙盒模式) */
+            const showHtmlViewer = (htmlContent) => {
+                // 1. 创建一个 iframe 来沙盒化内容
+                const iframe = document.createElement('iframe');
+                iframe.style.width = '100%';
+                iframe.style.border = 'none';
+                iframe.style.display = 'block'; // 防止默认的 inline 间距
+                iframe.style.height = '65vh'; // 设置一个临时的默认高度
+
+                // 2. 清空容器并添加 iframe
+                htmlViewerContent.innerHTML = ''; 
+                htmlViewerContent.appendChild(iframe);
+                
+                // 3. 将用户的HTML内容写入 iframe
+                try {
+                    const doc = iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(htmlContent);
+                    doc.close();
+                } catch (e) {
+                    console.error("Error writing to iframe:", e);
+                    htmlViewerContent.innerHTML = '<p>预览加载失败。</p>';
+                    showModal(htmlViewerOverlay);
+                    return;
+                }
+
+                // 4. 动态设置 iframe 高度以适应其内容
+                // 我们使用一个短暂的延迟来确保内容（尤其是样式）已经渲染
+                setTimeout(() => {
+                    try {
+                        const body = iframe.contentWindow.document.body;
+                        const html = iframe.contentWindow.document.documentElement;
+                        
+                        // 移除 iframe 默认的 body margin，让其紧贴边缘
+                        body.style.margin = '0';
+
+                        // 计算内容实际高度
+                        const height = Math.max( 
+                            body.scrollHeight, body.offsetHeight, 
+                            html.clientHeight, html.scrollHeight, html.offsetHeight 
+                        );
+                        
+                        // 设置 iframe 的高度。父 div (#html-viewer-content) 
+                        // 会在内容超出 max-height (70vh) 时出现滚动条
+                        iframe.style.height = (height + 2) + 'px'; // +2 像素作为缓冲
+
+                    } catch (e) {
+                        console.error("Error adjusting iframe height:", e);
+                        // 如果出错，使用回退高度
+                        iframe.style.height = '65vh'; 
+                    }
+                }, 100); // 100ms 延迟
+                
+                // 5. 显示弹窗
+                showModal(htmlViewerOverlay);
+            };
+
+            const hideHtmlViewer = () => {
+                hideModal(htmlViewerOverlay);
+                // 彻底清空 iframe 内容，防止脚本或媒体继续在后台运行
+                const iframe = htmlViewerContent.querySelector('iframe');
+                if (iframe) {
+                    // 设置为空白页，这是销毁 iframe 内容的标准方法
+                    iframe.src = 'about:blank';
+                }
+                htmlViewerContent.innerHTML = '';
+            };
+            htmlViewerCloseBtn.addEventListener('click', hideHtmlViewer);
+            htmlViewerOverlay.addEventListener('click', e => { if (e.target === htmlViewerOverlay) hideHtmlViewer(); });
+
+
+            /** (F3) 新增: 搜索筛选弹窗控制 */
+            const updateSearchFilterBtnState = () => {
+                if (searchFilterGroups.length > 0) {
+                    searchFilterBtn.classList.add('active');
+                    searchFilterBtn.textContent = `▽ (${searchFilterGroups.length})`;
+                } else {
+                    searchFilterBtn.classList.remove('active');
+                    searchFilterBtn.textContent = '▽';
+                }
+            };
+            const showSearchFilterModal = () => {
+                const allGroups = getAllGroups();
+                if (allGroups.length === 0) {
+                    searchFilterList.innerHTML = '<p style="color: var(--subtle-text-color); padding: 10px; text-align: center;">暂无分组</p>';
+                } else {
+                    searchFilterList.innerHTML = allGroups.map(g =>
+                        `<label><input type="checkbox" value="${escapeHTML(g)}" ${searchFilterGroups.includes(g) ? 'checked' : ''}> ${escapeHTML(g)}</label>`
+                    ).join('');
+                }
+                searchFilterModal.classList.add('visible');
+            };
+            const hideSearchFilterModal = () => searchFilterModal.classList.remove('visible');
+            
+            searchFilterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (searchFilterModal.classList.contains('visible')) {
+                    hideSearchFilterModal();
+                } else {
+                    showSearchFilterModal();
+                }
+            });
+            searchFilterApply.addEventListener('click', () => {
+                const selected = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value);
+                searchFilterGroups = selected;
+                saveSearchFilter();
+                updateSearchFilterBtnState();
+                renderItems();
+                hideSearchFilterModal();
+            });
+            searchFilterClear.addEventListener('click', () => {
+                searchFilterGroups = [];
+                saveSearchFilter();
+                updateSearchFilterBtnState();
+                [...searchFilterList.querySelectorAll('input:checked')].forEach(input => input.checked = false);
+                renderItems();
+                hideSearchFilterModal();
+            });
+
+
             const showViewer = async (file) => {
                 if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
                 viewerFilename.textContent = file.filename;
@@ -539,6 +1084,11 @@
             hamburgerMenu.addEventListener('click', openSidebar); sidebarOverlay.addEventListener('click', closeSidebar); addNoteBtn.addEventListener('click', () => showNoteModal('add'));
             groupList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.group) { currentFilterGroup = li.dataset.group; refreshUI(); closeSidebar(); } });
             searchBox.addEventListener('input', renderItems);
+            document.addEventListener('click', (e) => { // (F3) 增加点击空白处关闭搜索筛选
+                if (!searchFilterModal.contains(e.target) && e.target !== searchFilterBtn) {
+                    hideSearchFilterModal();
+                }
+            });
             
             // --- 辅助与刷新函数 ---
             const refreshUI = async () => { files = await dbActions.getAll(); renderGroups(); renderItems(); };
@@ -562,7 +1112,30 @@
             function getDragAfterElement(container, y) { const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')]; return draggableElements.reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2; if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } else { return closest; } }, { offset: Number.NEGATIVE_INFINITY }).element; }
 
             // --- 初始化 ---
-            const migrateData = () => { let nc = false; const n = JSON.parse(localStorage.getItem('notes-app-data')) || []; const m = n.map(note => { if (!note.type) { note.type = 'note'; nc = true; } return note; }); if (nc) { localStorage.setItem('notes-app-data', JSON.stringify(m)); } notes = m; groupOrder = JSON.parse(localStorage.getItem('group-order-data')) || []; };
+            
+            /** (F2) migrateData (已修改) - 增加旧数据时间戳兼容 */
+            const migrateData = () => {
+                let nc = false;
+                const n = JSON.parse(localStorage.getItem('notes-app-data')) || [];
+                const m = n.map(note => {
+                    if (!note.type) {
+                        note.type = 'note';
+                        nc = true;
+                    }
+                    // (F2) 兼容旧数据, 用id作为createdAt
+                    if (!note.createdAt) {
+                        note.createdAt = new Date(note.id).toISOString();
+                        nc = true;
+                    }
+                    return note;
+                });
+                if (nc) {
+                    localStorage.setItem('notes-app-data', JSON.stringify(m));
+                }
+                notes = m;
+                groupOrder = JSON.parse(localStorage.getItem('group-order-data')) || [];
+            };
+            
             const setupGroupInput = (input, dropdown, toggle) => {
                 toggle.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -582,6 +1155,10 @@
             loadTheme();
             await initDB();
             migrateData();
+            // (F3) 新增: 加载搜索筛选
+            searchFilterGroups = JSON.parse(localStorage.getItem('search-filter-groups')) || [];
+            updateSearchFilterBtnState();
+            
             await refreshUI();
         });
     </script>
