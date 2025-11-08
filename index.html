@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文案与文件存放站</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -151,8 +151,69 @@
         .main-header { padding: 15px 25px 15px 15px; background-color: var(--main-header-bg); border-bottom: 1px solid var(--border-color); box-shadow: 0 2px 4px var(--shadow-color); z-index: 10; display: flex; align-items: center; gap: 12px; }
         #hamburger-menu { font-size: 1.8em; cursor: pointer; color: var(--theme-color-darker); padding: 5px; margin-right: 3px; border-radius: 5px; transition: background-color 0.2s, color 0.3s; }
 
-        #search-box { flex-grow: 1; padding: 10px 15px; font-size: 1em; border: 1px solid var(--border-color); border-radius: 8px; box-sizing: border-box; transition: border-color 0.2s, box-shadow 0.2s; }
-        #search-box:focus { outline: none; border-color: var(--button-bg); box-shadow: 0 0 5px hsla(var(--theme-hue), var(--theme-sat), var(--theme-light), 0.5); }
+        /* --- (新) 多关键词搜索框 --- */
+        .multi-search-wrapper {
+            flex-grow: 1;
+            padding: 7px 15px;
+            font-size: 1em;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background-color: #fff;
+            display: flex;
+            flex-wrap: nowrap; /* (新) 修改: wrap -> nowrap (强制一行) */
+            overflow-x: auto; /* (新) 新增: 允许横向滚动 */
+            align-items: center;
+            gap: 6px;
+            cursor: text;
+        }
+        .multi-search-wrapper:focus-within {
+            outline: none;
+            border-color: var(--button-bg);
+            box-shadow: 0 0 5px hsla(var(--theme-hue), var(--theme-sat), var(--theme-light), 0.5);
+        }
+
+        .keyword-tag {
+            display: inline-flex;
+            align-items: center;
+            background-color: hsl(var(--theme-hue), var(--theme-sat), 90%);
+            color: var(--theme-color-darker);
+            border-radius: 4px;
+            padding: 3px 8px;
+            font-size: 0.9em;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .keyword-tag .remove-tag {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0;
+            border: none;
+            background: none;
+            cursor: pointer;
+            color: var(--theme-color-darker);
+            font-size: 1.1em;
+            line-height: 1;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        .keyword-tag .remove-tag:hover {
+            opacity: 1;
+        }
+
+        #search-input {
+            border: none;
+            outline: none;
+            padding: 0;
+            font-size: 1em;
+            font-family: var(--font-family);
+            background-color: transparent;
+            flex-grow: 1;
+            min-width: 100px; /* (新) 修改: 200px -> 100px, 保证在有tag时仍有输入空间 */
+            line-height: 1.6;
+        }
+        /* --- 结束 多关键词搜索框 --- */
 
         /* 搜索筛选按钮 (F3) */
         #search-filter-btn {
@@ -453,7 +514,7 @@
 
     <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div id="preset-colors"></div> <div class="custom-color-wrapper"> <label for="custom-color-picker">自定义</label> <input type="color" id="custom-color-picker" value="#4069bf"> </div> </div> </aside>
     <div id="sidebar-overlay"></div>
-    <div class="container"> <main class="main-content"> <header class="main-header"> <span id="hamburger-menu">☰</span> <input type="search" id="search-box" placeholder="搜索内容、文件名、分组、备注..."> <button id="search-filter-btn" title="按分组筛选">▽</button> </header> <div id="items-container"></div> </main> </div>
+    <div class="container"> <main class="main-content"> <header class="main-header"> <span id="hamburger-menu">☰</span> <div class="multi-search-wrapper" id="multi-search-wrapper"> <input type="text" id="search-input" placeholder="搜索内容、文件名、分组、备注..."> </div> <button id="search-filter-btn" title="按分组筛选">▽</button> </header> <div id="items-container"></div> </main> </div>
     
     <div id="search-filter-modal" class="search-filter-modal">
         <h3>按分组筛选</h3>
@@ -493,7 +554,9 @@
             const dbActions = { add: (item) => new Promise((res, rej) => { const r = getStore('readwrite').add(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), getAll: () => new Promise((res, rej) => { const r = getStore('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), update: (item) => new Promise((res, rej) => { const r = getStore('readwrite').put(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), delete: (id) => new Promise((res, rej) => { const r = getStore('readwrite').delete(id); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), clear: () => new Promise((res, rej) => { const r = getStore('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), };
             
             // --- DOM 元素获取 (新增 F3 和 F4 的元素) ---
-            const docBody = document.body, docRoot = document.documentElement, itemsContainer = document.getElementById('items-container'), groupList = document.getElementById('group-list'), searchBox = document.getElementById('search-box'), addNoteBtn = document.getElementById('add-note-btn'), noteModalOverlay = document.getElementById('note-modal-overlay'), noteForm = document.getElementById('note-form'), modalTitle = document.getElementById('modal-title'), cancelBtn = document.getElementById('cancel-btn'), noteIdInput = document.getElementById('note-id'), noteContentInput = document.getElementById('note-content'), noteGroupInput = document.getElementById('note-group'), noteRemarkInput = document.getElementById('note-remark'), noteGroupDropdown = document.getElementById('note-group-dropdown'), uploadFileBtn = document.getElementById('upload-file-btn'), fileInput = document.getElementById('file-input'), fileModalOverlay = document.getElementById('file-modal-overlay'), fileForm = document.getElementById('file-form'), fileModalTitle = document.getElementById('file-modal-title'), fileIdInput = document.getElementById('file-id'), fileNameDisplay = document.getElementById('file-name-display'), fileGroupInput = document.getElementById('file-group'), fileRemarkInput = document.getElementById('file-remark'), fileGroupDropdown = document.getElementById('file-group-dropdown'), cancelFileBtn = document.getElementById('cancel-file-btn'), confirmModalOverlay = document.getElementById('confirm-modal-overlay'), confirmModalText = document.getElementById('confirm-modal-text'), confirmYesBtn = document.getElementById('confirm-yes'), confirmNoBtn = document.getElementById('confirm-no'), infoModalOverlay = document.getElementById('info-modal-overlay'), infoModalText = document.getElementById('info-modal-text'), infoOkBtn = document.getElementById('info-ok-btn'), importBtn = document.getElementById('import-btn'), exportBtn = document.getElementById('export-btn'), importFileInput = document.getElementById('import-file-input'), importOptionsModalOverlay = document.getElementById('import-options-modal-overlay'), importSelectFileBtn = document.getElementById('import-select-file-btn'), importOptionsCancelBtn = document.getElementById('import-options-cancel-btn'), hamburgerMenu = document.getElementById('hamburger-menu'), sidebar = document.getElementById('sidebar'), sidebarOverlay = document.getElementById('sidebar-overlay'), copyFeedback = document.getElementById('copy-feedback'), presetColorsContainer = document.getElementById('preset-colors'), customColorPicker = document.getElementById('custom-color-picker'), viewerModalOverlay = document.getElementById('viewer-modal-overlay'), viewerHeader = document.getElementById('viewer-header'), viewerFilename = document.getElementById('viewer-filename'), closeViewerBtn = document.getElementById('close-viewer-btn'), viewerContent = document.getElementById('viewer-content'), viewerPageIndicator = document.getElementById('viewer-page-indicator');
+            const docBody = document.body, docRoot = document.documentElement, itemsContainer = document.getElementById('items-container'), groupList = document.getElementById('group-list'), /* (新) 移除 searchBox */ addNoteBtn = document.getElementById('add-note-btn'), noteModalOverlay = document.getElementById('note-modal-overlay'), noteForm = document.getElementById('note-form'), modalTitle = document.getElementById('modal-title'), cancelBtn = document.getElementById('cancel-btn'), noteIdInput = document.getElementById('note-id'), noteContentInput = document.getElementById('note-content'), noteGroupInput = document.getElementById('note-group'), noteRemarkInput = document.getElementById('note-remark'), noteGroupDropdown = document.getElementById('note-group-dropdown'), uploadFileBtn = document.getElementById('upload-file-btn'), fileInput = document.getElementById('file-input'), fileModalOverlay = document.getElementById('file-modal-overlay'), fileForm = document.getElementById('file-form'), fileModalTitle = document.getElementById('file-modal-title'), fileIdInput = document.getElementById('file-id'), fileNameDisplay = document.getElementById('file-name-display'), fileGroupInput = document.getElementById('file-group'), fileRemarkInput = document.getElementById('file-remark'), fileGroupDropdown = document.getElementById('file-group-dropdown'), cancelFileBtn = document.getElementById('cancel-file-btn'), confirmModalOverlay = document.getElementById('confirm-modal-overlay'), confirmModalText = document.getElementById('confirm-modal-text'), confirmYesBtn = document.getElementById('confirm-yes'), confirmNoBtn = document.getElementById('confirm-no'), infoModalOverlay = document.getElementById('info-modal-overlay'), infoModalText = document.getElementById('info-modal-text'), infoOkBtn = document.getElementById('info-ok-btn'), importBtn = document.getElementById('import-btn'), exportBtn = document.getElementById('export-btn'), importFileInput = document.getElementById('import-file-input'), importOptionsModalOverlay = document.getElementById('import-options-modal-overlay'), importSelectFileBtn = document.getElementById('import-select-file-btn'), importOptionsCancelBtn = document.getElementById('import-options-cancel-btn'), hamburgerMenu = document.getElementById('hamburger-menu'), sidebar = document.getElementById('sidebar'), sidebarOverlay = document.getElementById('sidebar-overlay'), copyFeedback = document.getElementById('copy-feedback'), presetColorsContainer = document.getElementById('preset-colors'), customColorPicker = document.getElementById('custom-color-picker'), viewerModalOverlay = document.getElementById('viewer-modal-overlay'), viewerHeader = document.getElementById('viewer-header'), viewerFilename = document.getElementById('viewer-filename'), closeViewerBtn = document.getElementById('close-viewer-btn'), viewerContent = document.getElementById('viewer-content'), viewerPageIndicator = document.getElementById('viewer-page-indicator');
+            // (新) 多关键词搜索
+            const searchInput = document.getElementById('search-input'), searchWrapper = document.getElementById('multi-search-wrapper');
             // 新增 (F3)
             const searchFilterBtn = document.getElementById('search-filter-btn'), searchFilterModal = document.getElementById('search-filter-modal'), searchFilterList = document.getElementById('search-filter-list'), searchFilterClear = document.getElementById('search-filter-clear'), searchFilterApply = document.getElementById('search-filter-apply');
             // 新增 (F4)
@@ -504,6 +567,7 @@
             let currentPdfDoc = null;
             let viewerScrollHandler = null;
             let searchFilterGroups = []; // 新增 (F3)
+            let searchKeywords = []; // (新) 多关键词
 
             // --- 主题美化 ---
             const presetThemes = [ { name: '默认 · 宝蓝', hue: 215, sat: 50, light: 50, value: '#4069bf' }, { name: '草莓奶昔', hue: 345, sat: 80, light: 88, value: '#fcdbe4' }, { name: '奶油黄', hue: 55, sat: 75, light: 75, value: '#f2e6a4' }, { name: '薄荷马卡龙', hue: 150, sat: 55, light: 85, value: '#c7f2de' }, { name: '海盐冰淇淋', hue: 195, sat: 70, light: 82, value: '#bce6f7' }, { name: '香芋布丁', hue: 260, sat: 65, light: 88, value: '#e6dff9' }, { name: '蜜桃苏打', hue: 20, sat: 90, light: 80, value: '#fcd3c4' }, { name: '宝宝蓝', hue: 210, sat: 70, light: 80, value: '#b8d6f5' }, { name: '抹茶拿铁', hue: 95, sat: 35, light: 80, value: '#d5e6c7' }, { name: '焦糖饼干', hue: 30, sat: 50, light: 75, value: '#e6ccb3' }, ];
@@ -588,10 +652,16 @@
 
             const applyCollapsibleLogic = () => { const allContentDivs = itemsContainer.querySelectorAll('.note-content'); allContentDivs.forEach(div => { const computedStyle = getComputedStyle(div); const lineHeight = parseFloat(computedStyle.lineHeight); if (div.scrollHeight > (lineHeight * 5)) { div.classList.add('collapsible'); } }); };
             
-            /** (F3) renderItems (已修改) - 增加搜索筛选逻辑 */
+            /** (F3, 新) renderItems (已修改) - 增加搜索筛选逻辑, 适配多关键词 */
             const renderItems = () => {
                 const all = [...notes, ...files].sort((a, b) => b.id - a.id);
-                const term = searchBox.value.trim().toLowerCase();
+                
+                // (新) 多关键词搜索
+                const currentTerm = searchInput.value.trim().toLowerCase();
+                const allTerms = [...searchKeywords.map(k => k.toLowerCase())];
+                if (currentTerm) {
+                   allTerms.push(currentTerm);
+                }
                 
                 const filtered = all.filter(i => {
                     // 1. 侧边栏分组筛选 (视图)
@@ -602,29 +672,51 @@
                     const searchGroupMatch = searchFilterGroups.length === 0 || (i.group && searchFilterGroups.includes(i.group));
                     if (!searchGroupMatch) return false;
 
-                    // 3. 搜索框文字筛选
-                    if (term === '') return true; // 通过了所有分组筛选，且没有文字，则显示
+                    // 3. 搜索框文字筛选 (多关键词)
+                    if (allTerms.length === 0) return true; // 通过了所有分组筛选，且没有文字，则显示
+
+                    let searchableText;
                     if (i.type === 'note') {
-                        return (i.content?.toLowerCase().includes(term)) || (i.group?.toLowerCase().includes(term)) || (i.remark?.toLowerCase().includes(term));
+                        searchableText = [i.content, i.group, i.remark].join(' ').toLowerCase();
                     } else {
-                        return (i.filename?.toLowerCase().includes(term)) || (i.group?.toLowerCase().includes(term)) || (i.remark?.toLowerCase().includes(term));
+                        searchableText = [i.filename, i.group, i.remark].join(' ').toLowerCase();
                     }
+
+                    // (新) 必须 *所有* 关键词都存在
+                    return allTerms.every(term => searchableText.includes(term));
                 });
 
                 itemsContainer.innerHTML = '';
                 if (filtered.length === 0) {
                     itemsContainer.innerHTML = '<p style="color: var(--subtle-text-color); grid-column: 1 / -1; text-align: center; margin-top: 50px;">没有找到匹配的条目哦。</p>';
                 } else {
-                    filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, term) : createFileCard(i, term)));
+                    // (新) 传递 allTerms 用于高亮
+                    filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, allTerms) : createFileCard(i, allTerms)));
                 }
                 applyCollapsibleLogic();
             };
 
             const escapeHTML = (str) => { const p = document.createElement('p'); p.textContent = str; return p.innerHTML; };
-            const highlightText = (text, term) => { const safeText = escapeHTML(text || ''); if (!term) return safeText; const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); return safeText.replace(regex, match => `<mark class="highlight">${match}</mark>`); };
             
-            /** (新) createNoteCard (已修改) - 移除“编辑于” */
-            function createNoteCard(note, term) {
+            /** (新) highlightText (已修改) - 适配多关键词高亮 */
+            const highlightText = (text, terms) => {
+                const safeText = escapeHTML(text || '');
+                if (!terms || terms.length === 0) return safeText;
+                
+                // (新) 过滤掉空字符串，并对特殊字符进行转义
+                const escapedTerms = terms
+                    .filter(t => t.length > 0)
+                    .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                
+                if (escapedTerms.length === 0) return safeText;
+
+                // (新) 创建一个匹配所有关键词的正则表达式
+                const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+                return safeText.replace(regex, match => `<mark class="highlight">${match}</mark>`);
+            };
+            
+            /** (新) createNoteCard (已修改) - 移除“编辑于”, 适配多关键词高亮 */
+            function createNoteCard(note, terms) { // (新) term -> terms
                 const c = document.createElement('div');
                 c.className = 'note-card'; c.dataset.id = note.id; c.dataset.type = 'note';
                 
@@ -640,9 +732,9 @@
                 const previewBtnHTML = hasHTML ? `<button class="preview-btn" title="预览HTML">预览</button>` : '';
 
                 c.innerHTML = `
-                    <div class="note-content">${highlightText(note.content, term)}</div>
+                    <div class="note-content">${highlightText(note.content, terms)}</div>
                     <div>
-                        <div class="item-footer">${note.group ? `<span class="group">${highlightText(note.group || '', term)}</span>` : ''}<span>${highlightText(note.remark || '', term)}</span></div>
+                        <div class="item-footer">${note.group ? `<span class="group">${highlightText(note.group || '', terms)}</span>` : ''}<span>${highlightText(note.remark || '', terms)}</span></div>
                         <div class="item-actions">
                             ${timestampsHTML} ${previewBtnHTML} <button class="copy-btn">复制</button>
                             <button class="edit-btn">编辑</button>
@@ -652,8 +744,8 @@
                 return c;
             }
 
-            /** (新) createFileCard (已修改) - 移除“编辑于” */
-            function createFileCard(file, term) {
+            /** (新) createFileCard (已修改) - 移除“编辑于”, 适配多关键词高亮 */
+            function createFileCard(file, terms) { // (新) term -> terms
                 const c = document.createElement('div');
                 c.className = 'file-card'; c.dataset.id = file.id; c.dataset.type = 'file';
                 const size = file.file ? `${(file.file.size / 1024).toFixed(2)} KB` : 'N/A';
@@ -665,9 +757,9 @@
                 </div>`;
 
                 c.innerHTML = `
-                    <div class="file-info"><span class="icon">📄</span><div class="file-details"><div class="filename">${highlightText(file.filename, term)}</div><div class="file-size">${size}</div></div></div>
+                    <div class="file-info"><span class="icon">📄</span><div class="file-details"><div class="filename">${highlightText(file.filename, terms)}</div><div class="file-size">${size}</div></div></div>
                     <div>
-                        <div class="item-footer">${file.group ? `<span class="group">${highlightText(file.group || '', term)}</span>` : ''}<span>${highlightText(file.remark || '', term)}</span></div>
+                        <div class="item-footer">${file.group ? `<span class="group">${highlightText(file.group || '', terms)}</span>` : ''}<span>${highlightText(file.remark || '', terms)}</span></div>
                         <div class="item-actions">
                             ${timestampsHTML} <button class="download-btn">下载</button>
                             <button class="edit-btn">编辑</button>
@@ -1083,7 +1175,75 @@
             const closeSidebar = () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); };
             hamburgerMenu.addEventListener('click', openSidebar); sidebarOverlay.addEventListener('click', closeSidebar); addNoteBtn.addEventListener('click', () => showNoteModal('add'));
             groupList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.group) { currentFilterGroup = li.dataset.group; refreshUI(); closeSidebar(); } });
-            searchBox.addEventListener('input', renderItems);
+            
+            // --- (新) 多关键词搜索逻辑 (已修改) ---
+            const renderKeywords = () => {
+                // 1. 移除旧标签
+                searchWrapper.querySelectorAll('.keyword-tag').forEach(tag => tag.remove());
+                
+                // 2. 添加新标签
+                searchKeywords.forEach(keyword => {
+                    const tag = document.createElement('span');
+                    tag.className = 'keyword-tag';
+                    const safeKeyword = escapeHTML(keyword);
+                    tag.innerHTML = `
+                        <span>${safeKeyword}</span>
+                        <button class="remove-tag" data-keyword="${safeKeyword}" title="移除">&times;</button>
+                    `;
+                    // 插在 input 前面
+                    searchWrapper.insertBefore(tag, searchInput);
+                });
+                
+                // 3. 触发搜索
+                renderItems();
+            };
+
+            // (新) 监听 input 事件，用于创建标签 (更兼容移动端)
+            searchInput.addEventListener('input', (e) => {
+                const value = searchInput.value;
+                
+                // 1. 检查是否以空格结尾
+                if (value.endsWith(' ') && value.trim() !== '') {
+                    // 是空格，创建标签
+                    const keyword = value.slice(0, -1).trim(); // 获取空格前的内容
+                    if (keyword && !searchKeywords.includes(keyword)) {
+                        searchKeywords.push(keyword);
+                    }
+                    searchInput.value = ''; // 清空输入框
+                    renderKeywords(); // 渲染新标签
+                }
+                
+                // 无论如何都重新渲染条目
+                renderItems();
+            });
+
+            // (新) 监听 keydown 事件，仅用于处理退格键
+            searchInput.addEventListener('keydown', (e) => {
+                // 2. 按下退格键 (Backspace)
+                if (e.key === 'Backspace' && searchInput.value === '' && searchKeywords.length > 0) {
+                    e.preventDefault();
+                    const lastKeyword = searchKeywords.pop();
+                    searchInput.value = lastKeyword + ' '; // 加个空格方便编辑
+                    renderKeywords(); // 移除标签
+                    renderItems(); // (新) 确保退格后也更新搜索
+                }
+            });
+
+
+            searchWrapper.addEventListener('click', (e) => {
+                // 3. 点击 "x" 移除标签
+                if (e.target.classList.contains('remove-tag')) {
+                    const keywordToRemove = e.target.dataset.keyword;
+                    searchKeywords = searchKeywords.filter(k => k !== keywordToRemove);
+                    renderKeywords();
+                }
+                // 4. 点击空白处聚焦 input
+                else if (e.target === searchWrapper || e.target.classList.contains('keyword-tag')) {
+                    searchInput.focus();
+                }
+            });
+            // --- 结束 多关键词搜索逻辑 ---
+
             document.addEventListener('click', (e) => { // (F3) 增加点击空白处关闭搜索筛选
                 if (!searchFilterModal.contains(e.target) && e.target !== searchFilterBtn) {
                     hideSearchFilterModal();
