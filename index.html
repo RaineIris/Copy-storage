@@ -575,7 +575,7 @@
             clear: () => new Promise((res, rej) => { const r = getStore('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), 
         };
 
-        // --- 2. Base64 转换工具 (纯JS版) ---
+        // --- 2. Base64 转换工具 ---
         const base64ToBlob = (dataURI) => {
             if(!dataURI) return null;
             const splitIndex = dataURI.indexOf(',');
@@ -725,7 +725,7 @@
             return c;
         }
 
-        // --- 8. 事件处理与核心逻辑修正 ---
+        // --- 8. 事件处理 ---
         const refreshUI = async () => {
             const allItems = await dbActions.getAll();
             files = allItems.filter(i => i.type === 'file');
@@ -824,7 +824,7 @@
             }
         });
 
-        // --- 9. 导入逻辑 (UI 优化版) ---
+        // --- 9. 导入逻辑 ---
         importBtn.addEventListener('click', () => showModal(importOptionsModalOverlay));
         importOptionsCancelBtn.addEventListener('click', () => hideModal(importOptionsModalOverlay));
         importSelectFileBtn.addEventListener('click', () => { hideModal(importOptionsModalOverlay); importFileInput.click(); });
@@ -851,7 +851,6 @@
                             let notesAdded = 0, notesSkipped = 0;
                             let filesAdded = 0, filesSkipped = 0;
 
-                            // 1. 处理文案
                             if (mode === 'overwrite') {
                                 await dbActions.clear();
                                 groupOrder = iGo;
@@ -873,7 +872,6 @@
                                 await dbActions.add(noteObj);
                             }
 
-                            // 2. 处理文件
                             for (const f of iF) {
                                 if (mode === 'append' && !merge) {
                                     const exists = files.some(existing => existing.filename === f.filename);
@@ -900,7 +898,6 @@
                             closeSidebar();
                             hideInfoModal();
                             
-                            // 🌟 优化后的弹窗文案（支持HTML排版，无Emoji，有间距）
                             let resultHTML = '';
                             if (mode === 'overwrite') {
                                 resultHTML = `
@@ -978,7 +975,7 @@
             closeSidebar(); 
         });
 
-        // --- 11. UI 交互杂项 ---
+        // --- 11. UI 交互 ---
         const showModal = (o) => { o.classList.add('visible'); docBody.classList.add('modal-open'); };
         const hideModal = (o) => { o.classList.remove('visible'); docBody.classList.remove('modal-open'); };
         const showNoteModal = (mode = 'add', note = null) => { noteForm.reset(); modalTitle.textContent = mode === 'edit' ? '编辑文案' : '添加新文案'; noteIdInput.value = note?.id || ''; noteContentInput.value = note?.content || ''; noteGroupInput.value = note?.group || ''; noteRemarkInput.value = note?.remark || ''; showModal(noteModalOverlay); };
@@ -988,23 +985,19 @@
         const showConfirmModal = (msg, cb, opt={}) => { confirmModalText.textContent = msg; confirmYesBtn.textContent = opt.yesText || '确定'; confirmNoBtn.textContent = opt.noText || '取消'; confirmCallback = cb; showModal(confirmModalOverlay); };
         const hideConfirmModal = () => hideModal(confirmModalOverlay);
         
-        // 🌟 核心修改：支持 HTML 内容的 showInfoModal，并优化行间距
         const showInfoModal = (msg) => { 
-            // 如果传入的是 HTML (包含 < 符号)，则用 innerHTML，否则用 textContent
             if (msg.includes('<')) {
                 infoModalText.innerHTML = msg;
-                infoModalText.style.textAlign = 'left'; // 列表左对齐
+                infoModalText.style.textAlign = 'left';
             } else {
                 infoModalText.textContent = msg;
-                infoModalText.style.textAlign = 'center'; // 普通短消息居中
+                infoModalText.style.textAlign = 'center';
             }
-            // 增加行高，防止文字挤在一起
             infoModalText.style.lineHeight = '1.8'; 
             showModal(infoModalOverlay); 
         };
         const hideInfoModal = () => hideModal(infoModalOverlay);
         
-        // HTML 预览
         const showHtmlViewer = (htmlContent) => {
             const iframe = document.createElement('iframe'); iframe.style.width = '100%'; iframe.style.border = 'none'; iframe.style.display = 'block'; iframe.style.height = '65vh';
             htmlViewerContent.innerHTML = ''; htmlViewerContent.appendChild(iframe);
@@ -1015,7 +1008,6 @@
         const hideHtmlViewer = () => { hideModal(htmlViewerOverlay); const iframe = htmlViewerContent.querySelector('iframe'); if (iframe) iframe.src = 'about:blank'; htmlViewerContent.innerHTML = ''; };
         htmlViewerCloseBtn.addEventListener('click', hideHtmlViewer); htmlViewerOverlay.addEventListener('click', e => { if (e.target === htmlViewerOverlay) hideHtmlViewer(); });
 
-        // 搜索筛选
         const updateSearchFilterBtnState = () => { if (searchFilterGroups.length > 0) { searchFilterBtn.classList.add('active'); searchFilterBtn.textContent = `▽ (${searchFilterGroups.length})`; } else { searchFilterBtn.classList.remove('active'); searchFilterBtn.textContent = '▽'; } };
         const showSearchFilterModal = () => { const allGroups = getAllGroups(); searchFilterList.innerHTML = allGroups.length === 0 ? '<p style="color: var(--subtle-text-color); padding: 10px; text-align: center;">暂无分组</p>' : allGroups.map(g => `<label><input type="checkbox" value="${escapeHTML(g)}" ${searchFilterGroups.includes(g) ? 'checked' : ''}> ${escapeHTML(g)}</label>`).join(''); searchFilterModal.classList.add('visible'); };
         const hideSearchFilterModal = () => searchFilterModal.classList.remove('visible');
@@ -1024,7 +1016,7 @@
         searchFilterClear.addEventListener('click', () => { searchFilterGroups = []; saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); hideSearchFilterModal(); });
         document.addEventListener('click', (e) => { if (!searchFilterModal.contains(e.target) && e.target !== searchFilterBtn) hideSearchFilterModal(); });
 
-        // 文件预览
+        // 🌟 核心修复：App/WebView 环境下 PDF 预览 (Data传输 + XHR Fallback)
         const showViewer = async (file) => {
             if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
             viewerFilename.textContent = file.filename; viewerContent.innerHTML = ''; viewerPageIndicator.textContent = '';
@@ -1034,14 +1026,75 @@
             else if (type.startsWith('audio/')) { element = document.createElement('audio'); element.src = currentObjectUrl; element.controls = true; }
             else if (type === 'application/pdf') {
                 viewerContent.innerHTML = `<div class="loader"></div>`;
+                
+                // 1. 尝试将 PDF 内容读取为 ArrayBuffer (Data传输)，这能绕过 "Blob XHR" 错误
+                let pdfData = null;
+                try {
+                    pdfData = await file.file.arrayBuffer();
+                } catch(e) { console.error("ArrayBuffer read failed", e); }
+
+                const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+                // 默认策略：标准模式
+                pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+
                 const setupPdfViewer = async (pdfDoc) => {
                     currentPdfDoc = pdfDoc; const totalPages = pdfDoc.numPages; const pdfPageCanvases = [];
                     viewerPageIndicator.textContent = `第 1 / ${totalPages} 页`; viewerContent.innerHTML = '';
                     viewerScrollHandler = () => { const viewerRect = viewerContent.getBoundingClientRect(); let mostVisiblePage = 1, maxVisibleHeight = 0; pdfPageCanvases.forEach((canvas, index) => { const canvasRect = canvas.getBoundingClientRect(); const visibleHeight = Math.max(0, Math.min(viewerRect.bottom, canvasRect.bottom) - Math.max(viewerRect.top, canvasRect.top)); if (visibleHeight > maxVisibleHeight) { maxVisibleHeight = visibleHeight; mostVisiblePage = index + 1; } }); viewerPageIndicator.textContent = `第 ${mostVisiblePage} / ${totalPages} 页`; };
                     viewerContent.addEventListener('scroll', viewerScrollHandler);
-                    for (let i = 1; i <= totalPages; i++) { const page = await pdfDoc.getPage(i); const viewport = page.getViewport({ scale: window.devicePixelRatio * 1.5 }); const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.height = viewport.height; canvas.width = viewport.width; await page.render({ canvasContext: context, viewport: viewport }).promise; viewerContent.appendChild(canvas); pdfPageCanvases.push(canvas); }
+                    for (let i = 1; i <= totalPages; i++) { 
+                        const page = await pdfDoc.getPage(i); 
+                        const pixelRatio = window.devicePixelRatio || 1;
+                        const viewport = page.getViewport({ scale: pixelRatio * 1.5 }); 
+                        const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.height = viewport.height; canvas.width = viewport.width; 
+                        await page.render({ canvasContext: context, viewport: viewport }).promise; 
+                        viewerContent.appendChild(canvas); pdfPageCanvases.push(canvas); 
+                    }
                 };
-                pdfjsLib.getDocument(currentObjectUrl).promise.then(setupPdfViewer).catch(() => viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`);
+
+                const loadPdf = async () => {
+                    // 🌟 关键点：优先传递数据 (data)，而不是 URL
+                    const source = pdfData ? { data: pdfData } : currentObjectUrl;
+
+                    try {
+                        return await pdfjsLib.getDocument(source).promise;
+                    } catch (firstErr) {
+                        console.warn('标准加载失败，尝试 XHR Worker 模式...', firstErr);
+                        try {
+                            const workerBlob = await new Promise((resolve, reject) => {
+                                const xhr = new XMLHttpRequest();
+                                xhr.open('GET', workerUrl, true);
+                                xhr.responseType = 'blob';
+                                xhr.onload = () => {
+                                    if (xhr.status === 200 || xhr.status === 0) resolve(xhr.response);
+                                    else reject(new Error('XHR status: ' + xhr.status));
+                                };
+                                xhr.onerror = () => reject(new Error('XHR Network Error'));
+                                xhr.send();
+                            });
+                            
+                            const reader = new FileReader();
+                            const workerText = await new Promise((res, rej) => {
+                                reader.onload = () => res(reader.result);
+                                reader.onerror = rej;
+                                reader.readAsText(workerBlob);
+                            });
+                            
+                            const finalBlob = new Blob([workerText], { type: 'application/javascript' });
+                            pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(finalBlob);
+                            return await pdfjsLib.getDocument(source).promise;
+                            
+                        } catch(secondErr) {
+                             throw new Error('无法加载PDF引擎。请检查App联网权限。\n' + secondErr.message);
+                        }
+                    }
+                };
+
+                loadPdf().then(setupPdfViewer).catch((err) => {
+                     console.error(err);
+                     viewerContent.innerHTML = `<div class="unsupported-preview"><p>${err.message}</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`;
+                });
+
             } else if (type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || filename.endsWith('.docx')) {
                 viewerContent.innerHTML = `<div class="loader"></div>`;
                 setTimeout(async () => { try { const arrayBuffer = await file.file.arrayBuffer(); const result = await mammoth.convertToHtml({ arrayBuffer }); const div = document.createElement('div'); div.className = 'docx-preview-container'; div.innerHTML = result.value; viewerContent.innerHTML = ''; viewerContent.appendChild(div); } catch (err) { viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`; } }, 50);
@@ -1063,13 +1116,11 @@
         addNoteBtn.addEventListener('click', () => showNoteModal('add'));
         groupList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.group) { currentFilterGroup = li.dataset.group; refreshUI(); closeSidebar(); } });
 
-        // 多关键词搜索
         const renderKeywords = () => { searchWrapper.querySelectorAll('.keyword-tag').forEach(tag => tag.remove()); searchKeywords.forEach(keyword => { const tag = document.createElement('span'); tag.className = 'keyword-tag'; tag.innerHTML = `<span>${escapeHTML(keyword)}</span><button class="remove-tag" data-keyword="${escapeHTML(keyword)}" title="移除">&times;</button>`; searchWrapper.insertBefore(tag, searchInput); }); renderItems(); };
         searchInput.addEventListener('input', () => { const value = searchInput.value; if (value.endsWith(' ') && value.trim() !== '') { const keyword = value.slice(0, -1).trim(); if (keyword && !searchKeywords.includes(keyword)) searchKeywords.push(keyword); searchInput.value = ''; renderKeywords(); } renderItems(); });
         searchInput.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && searchInput.value === '' && searchKeywords.length > 0) { const last = searchKeywords.pop(); searchInput.value = last + ' '; renderKeywords(); renderItems(); } });
         searchWrapper.addEventListener('click', (e) => { if (e.target.classList.contains('remove-tag')) { searchKeywords = searchKeywords.filter(k => k !== e.target.dataset.keyword); renderKeywords(); } else if (e.target === searchWrapper || e.target.classList.contains('keyword-tag')) { searchInput.focus(); } });
 
-        // 复制与拖拽
         let copyTimeout; const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => { clearTimeout(copyTimeout); copyFeedback.classList.add('show'); copyTimeout = setTimeout(() => copyFeedback.classList.remove('show'), 1500); }).catch(() => showInfoModal('复制失败！')); };
         let draggedItem = null;
         groupList.addEventListener('dragstart', (e) => { if (e.target.classList.contains('draggable')) { draggedItem = e.target; setTimeout(() => e.target.classList.add('dragging'), 0); } });
@@ -1089,7 +1140,6 @@
         loadTheme();
         await initDB();
         
-        // 自动迁移旧数据：如果发现 localStorage 还有旧文案，迁移到 IndexedDB
         const oldNotes = JSON.parse(localStorage.getItem('notes-app-data'));
         if (oldNotes && Array.isArray(oldNotes) && oldNotes.length > 0) {
             console.log('检测到旧缓存数据，正在迁移到数据库...');
