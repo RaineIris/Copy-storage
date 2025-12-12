@@ -546,781 +546,567 @@
 
 
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            // --- IndexedDB 数据库设置 ---
-            let db; const DB_NAME = 'files-db'; const STORE_NAME = 'files-store';
-            function initDB() { return new Promise((resolve, reject) => { const request = indexedDB.open(DB_NAME, 1); request.onupgradeneeded = e => { const db = e.target.result; if (!db.objectStoreNames.contains(STORE_NAME)) { db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true }); } }; request.onsuccess = e => { db = e.target.result; resolve(db); }; request.onerror = e => reject('Database error: ' + e.target.errorCode); }); }
-            function getStore(mode) { return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME); }
-            const dbActions = { add: (item) => new Promise((res, rej) => { const r = getStore('readwrite').add(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), getAll: () => new Promise((res, rej) => { const r = getStore('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), update: (item) => new Promise((res, rej) => { const r = getStore('readwrite').put(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), delete: (id) => new Promise((res, rej) => { const r = getStore('readwrite').delete(id); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), clear: () => new Promise((res, rej) => { const r = getStore('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), };
-            
-            // --- DOM 元素获取 (新增 F3 和 F4 的元素) ---
-            const docBody = document.body, docRoot = document.documentElement, itemsContainer = document.getElementById('items-container'), groupList = document.getElementById('group-list'), /* (新) 移除 searchBox */ addNoteBtn = document.getElementById('add-note-btn'), noteModalOverlay = document.getElementById('note-modal-overlay'), noteForm = document.getElementById('note-form'), modalTitle = document.getElementById('modal-title'), cancelBtn = document.getElementById('cancel-btn'), noteIdInput = document.getElementById('note-id'), noteContentInput = document.getElementById('note-content'), noteGroupInput = document.getElementById('note-group'), noteRemarkInput = document.getElementById('note-remark'), noteGroupDropdown = document.getElementById('note-group-dropdown'), uploadFileBtn = document.getElementById('upload-file-btn'), fileInput = document.getElementById('file-input'), fileModalOverlay = document.getElementById('file-modal-overlay'), fileForm = document.getElementById('file-form'), fileModalTitle = document.getElementById('file-modal-title'), fileIdInput = document.getElementById('file-id'), fileNameDisplay = document.getElementById('file-name-display'), fileGroupInput = document.getElementById('file-group'), fileRemarkInput = document.getElementById('file-remark'), fileGroupDropdown = document.getElementById('file-group-dropdown'), cancelFileBtn = document.getElementById('cancel-file-btn'), confirmModalOverlay = document.getElementById('confirm-modal-overlay'), confirmModalText = document.getElementById('confirm-modal-text'), confirmYesBtn = document.getElementById('confirm-yes'), confirmNoBtn = document.getElementById('confirm-no'), infoModalOverlay = document.getElementById('info-modal-overlay'), infoModalText = document.getElementById('info-modal-text'), infoOkBtn = document.getElementById('info-ok-btn'), importBtn = document.getElementById('import-btn'), exportBtn = document.getElementById('export-btn'), importFileInput = document.getElementById('import-file-input'), importOptionsModalOverlay = document.getElementById('import-options-modal-overlay'), importSelectFileBtn = document.getElementById('import-select-file-btn'), importOptionsCancelBtn = document.getElementById('import-options-cancel-btn'), hamburgerMenu = document.getElementById('hamburger-menu'), sidebar = document.getElementById('sidebar'), sidebarOverlay = document.getElementById('sidebar-overlay'), copyFeedback = document.getElementById('copy-feedback'), presetColorsContainer = document.getElementById('preset-colors'), customColorPicker = document.getElementById('custom-color-picker'), viewerModalOverlay = document.getElementById('viewer-modal-overlay'), viewerHeader = document.getElementById('viewer-header'), viewerFilename = document.getElementById('viewer-filename'), closeViewerBtn = document.getElementById('close-viewer-btn'), viewerContent = document.getElementById('viewer-content'), viewerPageIndicator = document.getElementById('viewer-page-indicator');
-            // (新) 多关键词搜索
-            const searchInput = document.getElementById('search-input'), searchWrapper = document.getElementById('multi-search-wrapper');
-            // 新增 (F3)
-            const searchFilterBtn = document.getElementById('search-filter-btn'), searchFilterModal = document.getElementById('search-filter-modal'), searchFilterList = document.getElementById('search-filter-list'), searchFilterClear = document.getElementById('search-filter-clear'), searchFilterApply = document.getElementById('search-filter-apply');
-            // 新增 (F4)
-            const htmlViewerOverlay = document.getElementById('html-viewer-overlay'), htmlViewerContent = document.getElementById('html-viewer-content'), htmlViewerCloseBtn = document.getElementById('html-viewer-close-btn');
+    document.addEventListener('DOMContentLoaded', async () => {
+        // --- 1. 核心数据库设置 (IndexedDB) ---
+        let db; 
+        const DB_NAME = 'files-db'; 
+        const STORE_NAME = 'files-store'; 
 
-            // --- 数据与状态 (新增 F3 的状态) ---
-            let notes = [], files = [], groupOrder = [], currentFilterGroup = 'all', confirmCallback = null, tempFile = null, currentObjectUrl = null;
-            let currentPdfDoc = null;
-            let viewerScrollHandler = null;
-            let searchFilterGroups = []; // 新增 (F3)
-            let searchKeywords = []; // (新) 多关键词
+        function initDB() { 
+            return new Promise((resolve, reject) => { 
+                const request = indexedDB.open(DB_NAME, 1); 
+                request.onupgradeneeded = e => { 
+                    const db = e.target.result; 
+                    if (!db.objectStoreNames.contains(STORE_NAME)) { 
+                        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true }); 
+                    } 
+                }; 
+                request.onsuccess = e => { db = e.target.result; resolve(db); }; 
+                request.onerror = e => reject('Database error: ' + e.target.errorCode); 
+            }); 
+        }
 
-            // --- 主题美化 ---
-            const presetThemes = [ { name: '默认 · 宝蓝', hue: 215, sat: 50, light: 50, value: '#4069bf' }, { name: '草莓奶昔', hue: 345, sat: 80, light: 88, value: '#fcdbe4' }, { name: '奶油黄', hue: 55, sat: 75, light: 75, value: '#f2e6a4' }, { name: '薄荷马卡龙', hue: 150, sat: 55, light: 85, value: '#c7f2de' }, { name: '海盐冰淇淋', hue: 195, sat: 70, light: 82, value: '#bce6f7' }, { name: '香芋布丁', hue: 260, sat: 65, light: 88, value: '#e6dff9' }, { name: '蜜桃苏打', hue: 20, sat: 90, light: 80, value: '#fcd3c4' }, { name: '宝宝蓝', hue: 210, sat: 70, light: 80, value: '#b8d6f5' }, { name: '抹茶拿铁', hue: 95, sat: 35, light: 80, value: '#d5e6c7' }, { name: '焦糖饼干', hue: 30, sat: 50, light: 75, value: '#e6ccb3' }, ];
-            const applyTheme = (h, s, l) => { docRoot.style.setProperty('--theme-hue', h); docRoot.style.setProperty('--theme-sat', `${s}%`); docRoot.style.setProperty('--theme-light', `${l}%`); localStorage.setItem('theme', JSON.stringify({ hue: h, sat: s, light: l })); };
-            const loadTheme = () => { const t = JSON.parse(localStorage.getItem('theme')) || presetThemes[0]; applyTheme(t.hue, t.sat, t.light); presetColorsContainer.innerHTML = ''; presetThemes.forEach(theme => { const d = document.createElement('div'); d.className = 'preset-dot'; d.style.backgroundColor = theme.value; d.title = theme.name; d.addEventListener('click', () => applyTheme(theme.hue, theme.sat, theme.light)); presetColorsContainer.appendChild(d); }); };
+        function getStore(mode) { return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME); }
+        const dbActions = { 
+            add: (item) => new Promise((res, rej) => { const r = getStore('readwrite').add(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), 
+            getAll: () => new Promise((res, rej) => { const r = getStore('readonly').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), 
+            update: (item) => new Promise((res, rej) => { const r = getStore('readwrite').put(item); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }), 
+            delete: (id) => new Promise((res, rej) => { const r = getStore('readwrite').delete(id); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), 
+            clear: () => new Promise((res, rej) => { const r = getStore('readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }), 
+        };
 
-            // --- 新增辅助函数 (F2, F4) ---
-            /** (F2) 格式化时间戳 */
-            const formatTimestamp = (isoString) => {
-                if (!isoString) return '';
-                try {
-                    const d = new Date(isoString);
-                    // 补全 YYYY-MM-DD HH:MM:SS 格式
-                    return d.toLocaleString('zh-CN', {
-                        year: 'numeric', month: '2-digit', day: '2-digit',
-                        hour: '2-digit', minute: '2-digit', second: '2-digit',
-                        hour12: false
-                    }).replace(/\//g, '-');
-                } catch(e) {
-                    console.error('Invalid timestamp:', isoString, e);
-                    return '';
-                }
-            };
-            /** (F4) 检查是否包含HTML */
-            const containsHTML = (str) => /<[a-z][\s\S]*>/i.test(str);
+        // --- 2. Base64 转换工具 (纯JS版) ---
+        const base64ToBlob = (dataURI) => {
+            if(!dataURI) return null;
+            const splitIndex = dataURI.indexOf(',');
+            if (splitIndex === -1) return null;
+            const base64 = dataURI.substring(splitIndex + 1);
+            const byteString = atob(base64);
+            const mimeString = dataURI.substring(5, splitIndex).split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        };
 
-            // --- 数据管理 ---
-            const saveNotes = () => localStorage.setItem('notes-app-data', JSON.stringify(notes));
-            const saveGroupOrder = () => localStorage.setItem('group-order-data', JSON.stringify(groupOrder));
-            const getAllGroups = () => { const ng = notes.map(n => n.group?.trim()); const fg = files.map(f => f.group?.trim()); return [...new Set([...ng, ...fg].filter(g => g))]; };
-            const saveSearchFilter = () => localStorage.setItem('search-filter-groups', JSON.stringify(searchFilterGroups)); // 新增 (F3)
+        // --- 3. DOM 元素获取 ---
+        const docBody = document.body, docRoot = document.documentElement, itemsContainer = document.getElementById('items-container'), groupList = document.getElementById('group-list');
+        const addNoteBtn = document.getElementById('add-note-btn'), noteModalOverlay = document.getElementById('note-modal-overlay'), noteForm = document.getElementById('note-form'), modalTitle = document.getElementById('modal-title'), cancelBtn = document.getElementById('cancel-btn'), noteIdInput = document.getElementById('note-id'), noteContentInput = document.getElementById('note-content'), noteGroupInput = document.getElementById('note-group'), noteRemarkInput = document.getElementById('note-remark'), noteGroupDropdown = document.getElementById('note-group-dropdown');
+        const uploadFileBtn = document.getElementById('upload-file-btn'), fileInput = document.getElementById('file-input'), fileModalOverlay = document.getElementById('file-modal-overlay'), fileForm = document.getElementById('file-form'), fileModalTitle = document.getElementById('file-modal-title'), fileIdInput = document.getElementById('file-id'), fileNameDisplay = document.getElementById('file-name-display'), fileGroupInput = document.getElementById('file-group'), fileRemarkInput = document.getElementById('file-remark'), fileGroupDropdown = document.getElementById('file-group-dropdown'), cancelFileBtn = document.getElementById('cancel-file-btn');
+        const confirmModalOverlay = document.getElementById('confirm-modal-overlay'), confirmModalText = document.getElementById('confirm-modal-text'), confirmYesBtn = document.getElementById('confirm-yes'), confirmNoBtn = document.getElementById('confirm-no');
+        const infoModalOverlay = document.getElementById('info-modal-overlay'), infoModalText = document.getElementById('info-modal-text'), infoOkBtn = document.getElementById('info-ok-btn');
+        const importBtn = document.getElementById('import-btn'), exportBtn = document.getElementById('export-btn'), importFileInput = document.getElementById('import-file-input'), importOptionsModalOverlay = document.getElementById('import-options-modal-overlay'), importSelectFileBtn = document.getElementById('import-select-file-btn'), importOptionsCancelBtn = document.getElementById('import-options-cancel-btn');
+        const hamburgerMenu = document.getElementById('hamburger-menu'), sidebar = document.getElementById('sidebar'), sidebarOverlay = document.getElementById('sidebar-overlay'), copyFeedback = document.getElementById('copy-feedback');
+        const presetColorsContainer = document.getElementById('preset-colors'), customColorPicker = document.getElementById('custom-color-picker');
+        const viewerModalOverlay = document.getElementById('viewer-modal-overlay'), viewerHeader = document.getElementById('viewer-header'), viewerFilename = document.getElementById('viewer-filename'), closeViewerBtn = document.getElementById('close-viewer-btn'), viewerContent = document.getElementById('viewer-content'), viewerPageIndicator = document.getElementById('viewer-page-indicator');
+        const searchInput = document.getElementById('search-input'), searchWrapper = document.getElementById('multi-search-wrapper');
+        const searchFilterBtn = document.getElementById('search-filter-btn'), searchFilterModal = document.getElementById('search-filter-modal'), searchFilterList = document.getElementById('search-filter-list'), searchFilterClear = document.getElementById('search-filter-clear'), searchFilterApply = document.getElementById('search-filter-apply');
+        const htmlViewerOverlay = document.getElementById('html-viewer-overlay'), htmlViewerContent = document.getElementById('html-viewer-content'), htmlViewerCloseBtn = document.getElementById('html-viewer-close-btn');
 
-            // --- 渲染函数 ---
-            
-            /** (F1, F3) renderGroups (已修改) - 增加分组计数 (F1), 调整样式 (F3) */
-            const renderGroups = () => {
-                const allGroups = getAllGroups();
-                groupOrder = groupOrder.filter(g => allGroups.includes(g));
-                allGroups.forEach(g => { if (!groupOrder.includes(g)) groupOrder.push(g); });
-                saveGroupOrder();
+        // --- 4. 数据与状态 ---
+        let notes = [], files = [], groupOrder = [], currentFilterGroup = 'all', confirmCallback = null, tempFile = null, currentObjectUrl = null;
+        let currentPdfDoc = null, viewerScrollHandler = null;
+        let searchFilterGroups = [], searchKeywords = [];
 
-                // (F1) 新增: 计算所有分组的数量
-                const all = [...notes, ...files];
-                const groupCounts = {
-                    'all': all.length,
-                    'notes_only': notes.length,
-                    'files_only': files.length
-                };
-                all.forEach(item => {
-                    if (item.group) {
-                        groupCounts[item.group] = (groupCounts[item.group] || 0) + 1;
-                    }
-                });
+        // --- 5. 主题美化 ---
+        const presetThemes = [ { name: '默认 · 宝蓝', hue: 215, sat: 50, light: 50, value: '#4069bf' }, { name: '草莓奶昔', hue: 345, sat: 80, light: 88, value: '#fcdbe4' }, { name: '奶油黄', hue: 55, sat: 75, light: 75, value: '#f2e6a4' }, { name: '薄荷马卡龙', hue: 150, sat: 55, light: 85, value: '#c7f2de' }, { name: '海盐冰淇淋', hue: 195, sat: 70, light: 82, value: '#bce6f7' }, { name: '香芋布丁', hue: 260, sat: 65, light: 88, value: '#e6dff9' }, { name: '蜜桃苏打', hue: 20, sat: 90, light: 80, value: '#fcd3c4' }, { name: '宝宝蓝', hue: 210, sat: 70, light: 80, value: '#b8d6f5' }, { name: '抹茶拿铁', hue: 95, sat: 35, light: 80, value: '#d5e6c7' }, { name: '焦糖饼干', hue: 30, sat: 50, light: 75, value: '#e6ccb3' }, ];
+        const applyTheme = (h, s, l) => { docRoot.style.setProperty('--theme-hue', h); docRoot.style.setProperty('--theme-sat', `${s}%`); docRoot.style.setProperty('--theme-light', `${l}%`); localStorage.setItem('theme', JSON.stringify({ hue: h, sat: s, light: l })); };
+        const loadTheme = () => { const t = JSON.parse(localStorage.getItem('theme')) || presetThemes[0]; applyTheme(t.hue, t.sat, t.light); presetColorsContainer.innerHTML = ''; presetThemes.forEach(theme => { const d = document.createElement('div'); d.className = 'preset-dot'; d.style.backgroundColor = theme.value; d.title = theme.name; d.addEventListener('click', () => applyTheme(theme.hue, theme.sat, theme.light)); presetColorsContainer.appendChild(d); }); };
 
-                groupList.innerHTML = '';
-                const staticGroups = [ { key: 'all', text: '所有条目' }, { key: 'notes_only', text: '文案' }, { key: 'files_only', text: '文件' } ];
-                
-                staticGroups.forEach(g => {
+        // --- 6. 辅助函数 ---
+        const formatTimestamp = (isoString) => { if (!isoString) return ''; try { const d = new Date(isoString); return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-'); } catch(e) { return ''; } };
+        const containsHTML = (str) => /<[a-z][\s\S]*>/i.test(str);
+        const escapeHTML = (str) => { const p = document.createElement('p'); p.textContent = str; return p.innerHTML; };
+        const saveGroupOrder = () => localStorage.setItem('group-order-data', JSON.stringify(groupOrder));
+        const saveSearchFilter = () => localStorage.setItem('search-filter-groups', JSON.stringify(searchFilterGroups));
+        const getAllGroups = () => { const ng = notes.map(n => n.group?.trim()); const fg = files.map(f => f.group?.trim()); return [...new Set([...ng, ...fg].filter(g => g))]; };
+
+        // --- 7. 渲染函数 ---
+        const renderGroups = () => {
+            const allGroups = getAllGroups();
+            groupOrder = groupOrder.filter(g => allGroups.includes(g));
+            allGroups.forEach(g => { if (!groupOrder.includes(g)) groupOrder.push(g); });
+            saveGroupOrder();
+
+            const all = [...notes, ...files];
+            const groupCounts = { 'all': all.length, 'notes_only': notes.length, 'files_only': files.length };
+            all.forEach(item => { if (item.group) groupCounts[item.group] = (groupCounts[item.group] || 0) + 1; });
+
+            groupList.innerHTML = '';
+            const staticGroups = [ { key: 'all', text: '所有条目' }, { key: 'notes_only', text: '文案' }, { key: 'files_only', text: '文件' } ];
+            staticGroups.forEach(g => {
+                const li = document.createElement('li');
+                li.dataset.group = g.key;
+                li.innerHTML = `<span>${g.text}</span> <span class="group-count">${groupCounts[g.key] || 0}</span>`;
+                if (g.key === currentFilterGroup) li.classList.add('active');
+                groupList.appendChild(li);
+            });
+            if (groupOrder.length > 0) {
+                groupList.appendChild(document.createElement('div')).className = 'divider';
+                groupOrder.forEach(g => {
                     const li = document.createElement('li');
-                    li.dataset.group = g.key;
-                    // (F1, F3) 修改: 插入 span 和 count
-                    li.innerHTML = `<span>${g.text}</span> <span class="group-count">${groupCounts[g.key] || 0}</span>`;
-                    if (g.key === currentFilterGroup) li.classList.add('active');
+                    li.dataset.group = g;
+                    li.innerHTML = `<span>${g}</span> <span class="group-count">${groupCounts[g] || 0}</span>`;
+                    li.draggable = true; li.classList.add('draggable');
+                    if (g === currentFilterGroup) li.classList.add('active');
                     groupList.appendChild(li);
                 });
-                
-                if (groupOrder.length > 0) {
-                    const d = document.createElement('div'); d.className = 'divider';
-                    groupList.appendChild(d);
-                    groupOrder.forEach(g => {
-                        const li = document.createElement('li');
-                        li.dataset.group = g;
-                        // (F1, F3) 修改: 插入 span 和 count
-                        li.innerHTML = `<span>${g}</span> <span class="group-count">${groupCounts[g] || 0}</span>`;
-                        li.draggable = true;
-                        li.classList.add('draggable');
-                        if (g === currentFilterGroup) li.classList.add('active');
-                        groupList.appendChild(li);
-                    });
-                }
-            };
-
-            const applyCollapsibleLogic = () => { const allContentDivs = itemsContainer.querySelectorAll('.note-content'); allContentDivs.forEach(div => { const computedStyle = getComputedStyle(div); const lineHeight = parseFloat(computedStyle.lineHeight); if (div.scrollHeight > (lineHeight * 5)) { div.classList.add('collapsible'); } }); };
-            
-            /** (F3, 新) renderItems (已修改) - 增加搜索筛选逻辑, 适配多关键词 */
-            const renderItems = () => {
-                const all = [...notes, ...files].sort((a, b) => b.id - a.id);
-                
-                // (新) 多关键词搜索
-                const currentTerm = searchInput.value.trim().toLowerCase();
-                const allTerms = [...searchKeywords.map(k => k.toLowerCase())];
-                if (currentTerm) {
-                   allTerms.push(currentTerm);
-                }
-                
-                const filtered = all.filter(i => {
-                    // 1. 侧边栏分组筛选 (视图)
-                    const sidebarGroupMatch = currentFilterGroup === 'all' || (currentFilterGroup === 'notes_only' && i.type === 'note') || (currentFilterGroup === 'files_only' && i.type === 'file') || i.group === currentFilterGroup;
-                    if (!sidebarGroupMatch) return false;
-
-                    // 2. 搜索框分组筛选 (F3)
-                    const searchGroupMatch = searchFilterGroups.length === 0 || (i.group && searchFilterGroups.includes(i.group));
-                    if (!searchGroupMatch) return false;
-
-                    // 3. 搜索框文字筛选 (多关键词)
-                    if (allTerms.length === 0) return true; // 通过了所有分组筛选，且没有文字，则显示
-
-                    let searchableText;
-                    if (i.type === 'note') {
-                        searchableText = [i.content, i.group, i.remark].join(' ').toLowerCase();
-                    } else {
-                        searchableText = [i.filename, i.group, i.remark].join(' ').toLowerCase();
-                    }
-
-                    // (新) 必须 *所有* 关键词都存在
-                    return allTerms.every(term => searchableText.includes(term));
-                });
-
-                itemsContainer.innerHTML = '';
-                if (filtered.length === 0) {
-                    itemsContainer.innerHTML = '<p style="color: var(--subtle-text-color); grid-column: 1 / -1; text-align: center; margin-top: 50px;">没有找到匹配的条目哦。</p>';
-                } else {
-                    // (新) 传递 allTerms 用于高亮
-                    filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, allTerms) : createFileCard(i, allTerms)));
-                }
-                applyCollapsibleLogic();
-            };
-
-            const escapeHTML = (str) => { const p = document.createElement('p'); p.textContent = str; return p.innerHTML; };
-            
-            /** (新) highlightText (已修改) - 适配多关键词高亮 */
-            const highlightText = (text, terms) => {
-                const safeText = escapeHTML(text || '');
-                if (!terms || terms.length === 0) return safeText;
-                
-                // (新) 过滤掉空字符串，并对特殊字符进行转义
-                const escapedTerms = terms
-                    .filter(t => t.length > 0)
-                    .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-                
-                if (escapedTerms.length === 0) return safeText;
-
-                // (新) 创建一个匹配所有关键词的正则表达式
-                const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
-                return safeText.replace(regex, match => `<mark class="highlight">${match}</mark>`);
-            };
-            
-            /** (新) createNoteCard (已修改) - 移除“编辑于”, 适配多关键词高亮 */
-            function createNoteCard(note, terms) { // (新) term -> terms
-                const c = document.createElement('div');
-                c.className = 'note-card'; c.dataset.id = note.id; c.dataset.type = 'note';
-                
-                // (新) 构造时间戳HTML (只显示创建)
-                const createdAt = note.createdAt ? formatTimestamp(note.createdAt) : formatTimestamp(new Date(note.id).toISOString()); // 兼容旧数据
-                const timestampsHTML = `<div class="item-timestamps">
-                    ${createdAt ? `<div class="timestamp">${createdAt}</div>` : ''}
-                </div>`;
-                
-                // (F4) 检查是否有HTML
-                const hasHTML = containsHTML(note.content);
-                // (F2) 修改: 替换emoji为文字
-                const previewBtnHTML = hasHTML ? `<button class="preview-btn" title="预览HTML">预览</button>` : '';
-
-                c.innerHTML = `
-                    <div class="note-content">${highlightText(note.content, terms)}</div>
-                    <div>
-                        <div class="item-footer">${note.group ? `<span class="group">${highlightText(note.group || '', terms)}</span>` : ''}<span>${highlightText(note.remark || '', terms)}</span></div>
-                        <div class="item-actions">
-                            ${timestampsHTML} ${previewBtnHTML} <button class="copy-btn">复制</button>
-                            <button class="edit-btn">编辑</button>
-                            <button class="delete-btn">删除</button>
-                        </div>
-                    </div>`;
-                return c;
             }
+        };
 
-            /** (新) createFileCard (已修改) - 移除“编辑于”, 适配多关键词高亮 */
-            function createFileCard(file, terms) { // (新) term -> terms
-                const c = document.createElement('div');
-                c.className = 'file-card'; c.dataset.id = file.id; c.dataset.type = 'file';
-                const size = file.file ? `${(file.file.size / 1024).toFixed(2)} KB` : 'N/A';
-                
-                // (新) 构造时间戳HTML (只显示创建)
-                const createdAt = file.createdAt ? formatTimestamp(file.createdAt) : ''; // 文件id不是时间戳, 不做兼容
-                const timestampsHTML = `<div class="item-timestamps">
-                    ${createdAt ? `<div class="timestamp">${createdAt}</div>` : ''}
-                </div>`;
+        const renderItems = () => {
+            const all = [...notes, ...files].sort((a, b) => b.id - a.id);
+            const currentTerm = searchInput.value.trim().toLowerCase();
+            const allTerms = [...searchKeywords.map(k => k.toLowerCase())];
+            if (currentTerm) allTerms.push(currentTerm);
 
-                c.innerHTML = `
-                    <div class="file-info"><span class="icon">📄</span><div class="file-details"><div class="filename">${highlightText(file.filename, terms)}</div><div class="file-size">${size}</div></div></div>
-                    <div>
-                        <div class="item-footer">${file.group ? `<span class="group">${highlightText(file.group || '', terms)}</span>` : ''}<span>${highlightText(file.remark || '', terms)}</span></div>
-                        <div class="item-actions">
-                            ${timestampsHTML} <button class="download-btn">下载</button>
-                            <button class="edit-btn">编辑</button>
-                            <button class="delete-btn">删除</button>
-                        </div>
-                    </div>`;
-                return c;
-            }
-            
-            const renderGroupDropdown = (input, dropdown) => { const f = input.value.toLowerCase(); const g = getAllGroups().filter(grp => grp.toLowerCase().includes(f)); dropdown.innerHTML = ''; if (g.length > 0) { [...new Set(g)].forEach(grp => { const i = document.createElement('div'); i.className = 'dropdown-item'; i.textContent = grp; i.addEventListener('mousedown', () => { input.value = grp; dropdown.classList.remove('visible'); }); dropdown.appendChild(i); }); dropdown.classList.add('visible'); } else { dropdown.classList.remove('visible'); } };
-            
-            // --- 事件处理 ---
-            
-            /** (新) noteForm submit (已修改) - 移除 modifiedAt */
-            noteForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const id = noteIdInput.value;
-                const content = noteContentInput.value.trim();
-                if (!content) { showInfoModal('内容不能为空哦！'); return; }
-                const d = { type: 'note', content, group: noteGroupInput.value.trim(), remark: noteRemarkInput.value.trim() };
-                
-                if (id) {
-                    const idx = notes.findIndex(n => n.id == id);
-                    if (idx > -1) {
-                        notes[idx] = { ...notes[idx], ...d }; // (新) 移除 modifiedAt
-                    }
-                } else {
-                    const newNote = { id: Date.now(), createdAt: new Date().toISOString(), ...d }; // (F2) 新增 createdAt
-                    notes.unshift(newNote);
-                }
-                saveNotes();
-                refreshUI();
-                hideNoteModal();
+            const filtered = all.filter(i => {
+                const sidebarGroupMatch = currentFilterGroup === 'all' || (currentFilterGroup === 'notes_only' && i.type === 'note') || (currentFilterGroup === 'files_only' && i.type === 'file') || i.group === currentFilterGroup;
+                if (!sidebarGroupMatch) return false;
+                const searchGroupMatch = searchFilterGroups.length === 0 || (i.group && searchFilterGroups.includes(i.group));
+                if (!searchGroupMatch) return false;
+                if (allTerms.length === 0) return true;
+                const searchableText = (i.type === 'note' ? [i.content, i.group, i.remark] : [i.filename, i.group, i.remark]).join(' ').toLowerCase();
+                return allTerms.every(term => searchableText.includes(term));
             });
 
-            /** (新) fileForm submit (已修改) - 移除 modifiedAt */
-            fileForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const filename = fileNameDisplay.value.trim();
-                if (!filename) { showInfoModal('文件名不能为空！'); return; }
-                const id = parseInt(fileIdInput.value, 10);
-                const d = { type: 'file', filename, group: fileGroupInput.value.trim(), remark: fileRemarkInput.value.trim() };
-                
+            itemsContainer.innerHTML = '';
+            if (filtered.length === 0) {
+                itemsContainer.innerHTML = '<p style="color: var(--subtle-text-color); grid-column: 1 / -1; text-align: center; margin-top: 50px;">没有找到匹配的条目哦。</p>';
+            } else {
+                filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, allTerms) : createFileCard(i, allTerms)));
+            }
+            const allContentDivs = itemsContainer.querySelectorAll('.note-content'); 
+            allContentDivs.forEach(div => { if (div.scrollHeight > (parseFloat(getComputedStyle(div).lineHeight) * 5)) div.classList.add('collapsible'); });
+        };
+
+        const highlightText = (text, terms) => {
+            const safeText = escapeHTML(text || '');
+            if (!terms || terms.length === 0) return safeText;
+            const escapedTerms = terms.filter(t => t.length > 0).map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+            if (escapedTerms.length === 0) return safeText;
+            const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+            return safeText.replace(regex, match => `<mark class="highlight">${match}</mark>`);
+        };
+
+        function createNoteCard(note, terms) {
+            const c = document.createElement('div');
+            c.className = 'note-card'; c.dataset.id = note.id; c.dataset.type = 'note';
+            const createdAt = note.createdAt ? formatTimestamp(note.createdAt) : formatTimestamp(new Date(note.id).toISOString());
+            const hasHTML = containsHTML(note.content);
+            c.innerHTML = `
+                <div class="note-content">${highlightText(note.content, terms)}</div>
+                <div>
+                    <div class="item-footer">${note.group ? `<span class="group">${highlightText(note.group || '', terms)}</span>` : ''}<span>${highlightText(note.remark || '', terms)}</span></div>
+                    <div class="item-actions">
+                        <div class="item-timestamps">${createdAt ? `<div class="timestamp">${createdAt}</div>` : ''}</div>
+                        ${hasHTML ? `<button class="preview-btn" title="预览HTML">预览</button>` : ''} <button class="copy-btn">复制</button> <button class="edit-btn">编辑</button> <button class="delete-btn">删除</button>
+                    </div>
+                </div>`;
+            return c;
+        }
+
+        function createFileCard(file, terms) {
+            const c = document.createElement('div');
+            c.className = 'file-card'; c.dataset.id = file.id; c.dataset.type = 'file';
+            const size = file.file ? `${(file.file.size / 1024).toFixed(2)} KB` : 'N/A';
+            const createdAt = file.createdAt ? formatTimestamp(file.createdAt) : '';
+            c.innerHTML = `
+                <div class="file-info"><span class="icon">📄</span><div class="file-details"><div class="filename">${highlightText(file.filename, terms)}</div><div class="file-size">${size}</div></div></div>
+                <div>
+                    <div class="item-footer">${file.group ? `<span class="group">${highlightText(file.group || '', terms)}</span>` : ''}<span>${highlightText(file.remark || '', terms)}</span></div>
+                    <div class="item-actions">
+                        <div class="item-timestamps">${createdAt ? `<div class="timestamp">${createdAt}</div>` : ''}</div>
+                        <button class="download-btn">下载</button> <button class="edit-btn">编辑</button> <button class="delete-btn">删除</button>
+                    </div>
+                </div>`;
+            return c;
+        }
+
+        // --- 8. 事件处理与核心逻辑修正 ---
+        const refreshUI = async () => {
+            const allItems = await dbActions.getAll();
+            files = allItems.filter(i => i.type === 'file');
+            notes = allItems.filter(i => i.type === 'note'); 
+            renderGroups();
+            renderItems();
+        };
+
+        noteForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = noteIdInput.value;
+            const content = noteContentInput.value.trim();
+            if (!content) { showInfoModal('内容不能为空哦！'); return; }
+            const d = { type: 'note', content, group: noteGroupInput.value.trim(), remark: noteRemarkInput.value.trim() };
+            try {
+                if (id) {
+                    const existing = notes.find(n => n.id == id);
+                    if (existing) await dbActions.update({ ...existing, ...d });
+                } else {
+                    const newNote = { createdAt: new Date().toISOString(), ...d }; 
+                    await dbActions.add(newNote);
+                }
+                await refreshUI();
+                hideNoteModal();
+            } catch(err) { console.error(err); showInfoModal('保存失败：数据库错误'); }
+        });
+
+        fileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const filename = fileNameDisplay.value.trim();
+            if (!filename) { showInfoModal('文件名不能为空！'); return; }
+            const id = parseInt(fileIdInput.value, 10);
+            const d = { type: 'file', filename, group: fileGroupInput.value.trim(), remark: fileRemarkInput.value.trim() };
+            try {
                 if (id) {
                     const ef = files.find(f => f.id === id);
-                    // (新) 移除 d.modifiedAt
                     await dbActions.update({ ...ef, ...d });
                 } else {
                     if (!tempFile) { showInfoModal('文件不存在，请重新选择。'); return; }
                     d.file = tempFile;
-                    d.createdAt = new Date().toISOString(); // (F2) 新增 createdAt
+                    d.createdAt = new Date().toISOString();
                     await dbActions.add(d);
                 }
                 tempFile = null;
                 await refreshUI();
                 hideFileModal();
-            });
+            } catch (err) { console.error(err); showInfoModal('文件保存失败'); }
+        });
 
-            uploadFileBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', (e) => { const f = e.target.files[0]; if (!f) return; tempFile = f; hideNoteModal(); showFileModal('add'); });
+        itemsContainer.addEventListener('click', async (e) => {
+            const card = e.target.closest('.note-card, .file-card');
+            if (!card) return;
+            const id = parseInt(card.dataset.id, 10);
+            const type = card.dataset.type;
+            const targetIsActionButton = e.target.closest('.item-actions');
+            const targetIsCollapsible = e.target.closest('.note-content.collapsible');
             
-            /** (F4) itemsContainer click (已修改) - 增加预览按钮事件 */
-            itemsContainer.addEventListener('click', async (e) => {
-                const card = e.target.closest('.note-card, .file-card');
-                if (!card) return;
-                const id = parseInt(card.dataset.id, 10);
-                const type = card.dataset.type;
-                const targetIsActionButton = e.target.closest('.item-actions');
-                const targetIsCollapsible = e.target.closest('.note-content.collapsible');
-                
-                if (targetIsCollapsible) {
-                    if (targetIsCollapsible.classList.contains('expanded')) {
-                        targetIsCollapsible.classList.remove('expanded');
-                        targetIsCollapsible.style.maxHeight = null;
+            if (targetIsCollapsible) {
+                targetIsCollapsible.classList.toggle('expanded');
+                targetIsCollapsible.style.maxHeight = targetIsCollapsible.classList.contains('expanded') ? targetIsCollapsible.scrollHeight + 'px' : null;
+                return;
+            }
+            if (type === 'file' && !targetIsActionButton) {
+                const file = files.find(f => f.id === id);
+                if(file) showViewer(file);
+                return;
+            }
+            if (targetIsActionButton) {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                if (btn.classList.contains('delete-btn')) {
+                    showConfirmModal(type === 'note' ? '确定要删除这条文案吗？' : '确定要删除这个文件吗？', async (c) => {
+                        if (c) { await dbActions.delete(id); await refreshUI(); }
+                    }, { danger: true, yesText: '删除' });
+                } else if (btn.classList.contains('edit-btn')) {
+                    if (type === 'note') {
+                        const n = notes.find(n => n.id === id);
+                        if (n) showNoteModal('edit', n);
                     } else {
-                        targetIsCollapsible.classList.add('expanded');
-                        targetIsCollapsible.style.maxHeight = targetIsCollapsible.scrollHeight + 'px';
-                    }
-                    return;
-                }
-                if (type === 'file' && !targetIsActionButton) {
-                    const file = files.find(f => f.id === id);
-                    if(file) showViewer(file);
-                    return;
-                }
-                if (targetIsActionButton) {
-                    const btn = e.target.closest('button');
-                    if (!btn) return;
-                    if (btn.classList.contains('delete-btn')) {
-                        showConfirmModal(type === 'note' ? '确定要删除这条文案吗？' : '确定要删除这个文件吗？', async (c) => {
-                            if (c) {
-                                if (type === 'note') {
-                                    notes = notes.filter(n => n.id !== id);
-                                    saveNotes();
-                                } else {
-                                    await dbActions.delete(id);
-                                }
-                                await refreshUI();
-                            }
-                        }, { danger: true, yesText: '删除' });
-                    } else if (btn.classList.contains('edit-btn')) {
-                        if (type === 'note') {
-                            const n = notes.find(n => n.id === id);
-                            if (n) showNoteModal('edit', n);
-                        } else {
-                            const f = files.find(f => f.id === id);
-                            if (f) showFileModal('edit', f);
-                        }
-                    } else if (btn.classList.contains('copy-btn')) {
-                        const n = notes.find(n => n.id === id);
-                        if (n) copyToClipboard(n.content);
-                    } else if (btn.classList.contains('download-btn')) {
                         const f = files.find(f => f.id === id);
-                        if (f?.file) {
-                            const url = URL.createObjectURL(f.file);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = f.filename;
-                            a.click();
-                            URL.revokeObjectURL(url);
-                        }
-                    } else if (btn.classList.contains('preview-btn')) { // (F4) 新增
-                        const n = notes.find(n => n.id === id);
-                        if (n) showHtmlViewer(n.content);
+                        if (f) showFileModal('edit', f);
                     }
+                } else if (btn.classList.contains('copy-btn')) {
+                    const n = notes.find(n => n.id === id);
+                    if (n) copyToClipboard(n.content);
+                } else if (btn.classList.contains('download-btn')) {
+                    const f = files.find(f => f.id === id);
+                    if (f?.file) {
+                        const url = URL.createObjectURL(f.file);
+                        const a = document.createElement('a'); a.href = url; a.download = f.filename; a.click(); URL.revokeObjectURL(url);
+                    }
+                } else if (btn.classList.contains('preview-btn')) {
+                    const n = notes.find(n => n.id === id);
+                    if (n) showHtmlViewer(n.content);
                 }
-            });
-            
-            // --- 导入/导出功能 ---
-            const blobToBase64 = b => new Promise((res, rej) => { const r = new FileReader(); r.readAsDataURL(b); r.onload = () => res(r.result); r.onerror = e => rej(e); });
-            const base64ToBlob = async (b64) => { const r = await fetch(b64); return await r.blob(); };
-            exportBtn.addEventListener('click', async () => { if (notes.length === 0 && files.length === 0) { showInfoModal('没有数据可以导出。'); return; } showInfoModal('正在准备导出数据，请稍候...'); const filesForExport = []; for (const f of files) { if (f.file) { const b64 = await blobToBase64(f.file); filesForExport.push({ ...f, file: b64 }); } } const data = { notes, files: filesForExport, groupOrder, theme: JSON.parse(localStorage.getItem('theme')) || presetThemes[0] }; const str = JSON.stringify(data); const blob = new Blob([str], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); const d = new Date(); a.download = `数据备份_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`; a.href = url; a.click(); URL.revokeObjectURL(url); showInfoModal('数据已开始导出！'); closeSidebar(); });
-            importBtn.addEventListener('click', () => showModal(importOptionsModalOverlay));
-            importOptionsCancelBtn.addEventListener('click', () => hideModal(importOptionsModalOverlay));
-            importSelectFileBtn.addEventListener('click', () => { hideModal(importOptionsModalOverlay); importFileInput.click(); });
-            importFileInput.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (event) => { try { const parsedData = JSON.parse(event.target.result); let iN, iF, iGo, iT; if (Array.isArray(parsedData)) { iN = parsedData; iF = []; iGo = []; iT = null; } else { iN = parsedData.notes || []; iF = parsedData.files || []; iGo = parsedData.groupOrder || []; iT = parsedData.theme; } const mode = document.querySelector('input[name="import-mode"]:checked').value; const handleOverwrite = async () => { notes = iN; groupOrder = iGo; saveNotes(); saveGroupOrder(); await dbActions.clear(); for (const f of iF) { f.file = await base64ToBlob(f.file); delete f.id; await dbActions.add(f); } if (iT) { applyTheme(iT.hue, iT.sat, iT.light); loadTheme(); } await refreshUI(); showInfoModal('数据已成功覆盖！'); }; if (mode === 'overwrite') { showConfirmModal('此操作将覆盖所有文案和文件，确定吗？', (c) => { if (c) handleOverwrite(); }, { danger: true, yesText: '确定覆盖' }); } else { const existingNoteContents = new Set(notes.map(n => n.content)); const nonDuplicateNotes = iN.filter(n => !existingNoteContents.has(n.content)); const existingFilenames = new Set(files.map(f => f.filename)); const nonDuplicateFiles = iF.filter(f => !existingFilenames.has(f.filename)); const dupCount = (iN.length - nonDuplicateNotes.length) + (iF.length - nonDuplicateFiles.length); const handleAppend = async (addAll) => { const notesToAdd = addAll ? iN : nonDuplicateNotes; const filesToAdd = addAll ? iF : nonDuplicateFiles; notes.push(...notesToAdd); iGo.forEach(g => { if(!groupOrder.includes(g)) groupOrder.push(g) }); saveNotes(); saveGroupOrder(); for (const f of filesToAdd) { f.file = await base64ToBlob(f.file); delete f.id; await dbActions.add(f); } await refreshUI(); showInfoModal(`${notesToAdd.length + filesToAdd.length}个新项目已成功添加！`); }; if (dupCount > 0) { showConfirmModal(`发现 ${dupCount} 个重复项目。`, c => handleAppend(c), { yesText: '全部添加', noText: '跳过重复' }); } else { handleAppend(false); } } } catch (err) { showInfoModal('导入失败！请确保是正确的备份文件。'); console.error(err); } finally { e.target.value = ''; closeSidebar(); } }; reader.readText(file); });
-            
-            // --- 弹窗、侧边栏、预览等UI控制 ---
-            const showModal = (o) => { o.classList.add('visible'); docBody.classList.add('modal-open'); };
-            const hideModal = (o) => { o.classList.remove('visible'); docBody.classList.remove('modal-open'); };
-            const showNoteModal = (mode = 'add', note = null) => { noteForm.reset(); modalTitle.textContent = mode === 'edit' ? '编辑文案' : '添加新文案'; noteIdInput.value = note?.id || ''; noteContentInput.value = note?.content || ''; noteGroupInput.value = note?.group || ''; noteRemarkInput.value = note?.remark || ''; showModal(noteModalOverlay); };
-            const hideNoteModal = () => hideModal(noteModalOverlay);
-            const showFileModal = (mode = 'add', file = null) => { fileForm.reset(); fileModalTitle.textContent = mode === 'edit' ? '编辑文件详情' : '文件详情'; fileIdInput.value = file?.id || ''; fileNameDisplay.value = file?.filename || tempFile?.name || '未知文件'; fileGroupInput.value = file?.group || ''; fileRemarkInput.value = file?.remark || ''; showModal(fileModalOverlay); };
-            const hideFileModal = () => hideModal(fileModalOverlay);
-            const showConfirmModal = (msg, cb, opt={}) => { confirmModalText.textContent = msg; confirmYesBtn.textContent = opt.yesText || '确定'; confirmNoBtn.textContent = opt.noText || '取消'; confirmCallback = cb; showModal(confirmModalOverlay); };
-            const hideConfirmModal = () => hideModal(confirmModalOverlay);
-            const showInfoModal = (msg) => { infoModalText.textContent = msg; showModal(infoModalOverlay); };
-            const hideInfoModal = () => hideModal(infoModalOverlay);
-            
-            /** (F4) 新增: HTML 预览弹窗控制 (已修改为iframe沙盒模式) */
-            const showHtmlViewer = (htmlContent) => {
-                // 1. 创建一个 iframe 来沙盒化内容
-                const iframe = document.createElement('iframe');
-                iframe.style.width = '100%';
-                iframe.style.border = 'none';
-                iframe.style.display = 'block'; // 防止默认的 inline 间距
-                iframe.style.height = '65vh'; // 设置一个临时的默认高度
+            }
+        });
 
-                // 2. 清空容器并添加 iframe
-                htmlViewerContent.innerHTML = ''; 
-                htmlViewerContent.appendChild(iframe);
-                
-                // 3. 将用户的HTML内容写入 iframe
+        // --- 9. 导入逻辑 (UI 优化版) ---
+        importBtn.addEventListener('click', () => showModal(importOptionsModalOverlay));
+        importOptionsCancelBtn.addEventListener('click', () => hideModal(importOptionsModalOverlay));
+        importSelectFileBtn.addEventListener('click', () => { hideModal(importOptionsModalOverlay); importFileInput.click(); });
+
+        importFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) { e.target.value = ''; return; }
+            showInfoModal('正在处理...');
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                hideInfoModal();
                 try {
-                    const doc = iframe.contentWindow.document;
-                    doc.open();
-                    doc.write(htmlContent);
-                    doc.close();
-                } catch (e) {
-                    console.error("Error writing to iframe:", e);
-                    htmlViewerContent.innerHTML = '<p>预览加载失败。</p>';
-                    showModal(htmlViewerOverlay);
-                    return;
-                }
-
-                // 4. 动态设置 iframe 高度以适应其内容
-                // 我们使用一个短暂的延迟来确保内容（尤其是样式）已经渲染
-                setTimeout(() => {
-                    try {
-                        const body = iframe.contentWindow.document.body;
-                        const html = iframe.contentWindow.document.documentElement;
-                        
-                        // 移除 iframe 默认的 body margin，让其紧贴边缘
-                        body.style.margin = '0';
-
-                        // 计算内容实际高度
-                        const height = Math.max( 
-                            body.scrollHeight, body.offsetHeight, 
-                            html.clientHeight, html.scrollHeight, html.offsetHeight 
-                        );
-                        
-                        // 设置 iframe 的高度。父 div (#html-viewer-content) 
-                        // 会在内容超出 max-height (70vh) 时出现滚动条
-                        iframe.style.height = (height + 2) + 'px'; // +2 像素作为缓冲
-
-                    } catch (e) {
-                        console.error("Error adjusting iframe height:", e);
-                        // 如果出错，使用回退高度
-                        iframe.style.height = '65vh'; 
-                    }
-                }, 100); // 100ms 延迟
-                
-                // 5. 显示弹窗
-                showModal(htmlViewerOverlay);
-            };
-
-            const hideHtmlViewer = () => {
-                hideModal(htmlViewerOverlay);
-                // 彻底清空 iframe 内容，防止脚本或媒体继续在后台运行
-                const iframe = htmlViewerContent.querySelector('iframe');
-                if (iframe) {
-                    // 设置为空白页，这是销毁 iframe 内容的标准方法
-                    iframe.src = 'about:blank';
-                }
-                htmlViewerContent.innerHTML = '';
-            };
-            htmlViewerCloseBtn.addEventListener('click', hideHtmlViewer);
-            htmlViewerOverlay.addEventListener('click', e => { if (e.target === htmlViewerOverlay) hideHtmlViewer(); });
-
-
-            /** (F3) 新增: 搜索筛选弹窗控制 */
-            const updateSearchFilterBtnState = () => {
-                if (searchFilterGroups.length > 0) {
-                    searchFilterBtn.classList.add('active');
-                    searchFilterBtn.textContent = `▽ (${searchFilterGroups.length})`;
-                } else {
-                    searchFilterBtn.classList.remove('active');
-                    searchFilterBtn.textContent = '▽';
-                }
-            };
-            const showSearchFilterModal = () => {
-                const allGroups = getAllGroups();
-                if (allGroups.length === 0) {
-                    searchFilterList.innerHTML = '<p style="color: var(--subtle-text-color); padding: 10px; text-align: center;">暂无分组</p>';
-                } else {
-                    searchFilterList.innerHTML = allGroups.map(g =>
-                        `<label><input type="checkbox" value="${escapeHTML(g)}" ${searchFilterGroups.includes(g) ? 'checked' : ''}> ${escapeHTML(g)}</label>`
-                    ).join('');
-                }
-                searchFilterModal.classList.add('visible');
-            };
-            const hideSearchFilterModal = () => searchFilterModal.classList.remove('visible');
-            
-            searchFilterBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (searchFilterModal.classList.contains('visible')) {
-                    hideSearchFilterModal();
-                } else {
-                    showSearchFilterModal();
-                }
-            });
-            searchFilterApply.addEventListener('click', () => {
-                const selected = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value);
-                searchFilterGroups = selected;
-                saveSearchFilter();
-                updateSearchFilterBtnState();
-                renderItems();
-                hideSearchFilterModal();
-            });
-            searchFilterClear.addEventListener('click', () => {
-                searchFilterGroups = [];
-                saveSearchFilter();
-                updateSearchFilterBtnState();
-                [...searchFilterList.querySelectorAll('input:checked')].forEach(input => input.checked = false);
-                renderItems();
-                hideSearchFilterModal();
-            });
-
-
-            const showViewer = async (file) => {
-                if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-                viewerFilename.textContent = file.filename;
-                viewerContent.innerHTML = '';
-                viewerPageIndicator.textContent = '';
-                const type = file.file.type;
-                const filename = file.filename.toLowerCase();
-                currentObjectUrl = URL.createObjectURL(file.file);
-                let element;
-
-                if (type.startsWith('image/')) {
-                    element = document.createElement('img');
-                    element.src = currentObjectUrl;
-                } else if (type.startsWith('video/')) {
-                    element = document.createElement('video');
-                    element.src = currentObjectUrl;
-                    element.controls = true;
-                } else if (type.startsWith('audio/')) {
-                    element = document.createElement('audio');
-                    element.src = currentObjectUrl;
-                    element.controls = true;
-                } else if (type === 'application/pdf') {
-                    viewerContent.innerHTML = `<div class="loader"></div>`;
+                    const parsedData = JSON.parse(event.target.result);
+                    let iN, iF, iGo, iT;
+                    if (Array.isArray(parsedData)) { iN = parsedData; iF = []; iGo = []; iT = null; } 
+                    else { iN = parsedData.notes || []; iF = parsedData.files || []; iGo = parsedData.groupOrder || []; iT = parsedData.theme; }
                     
-                    const setupPdfViewer = async (pdfDoc) => {
-                        currentPdfDoc = pdfDoc;
-                        const totalPages = pdfDoc.numPages;
-                        const pdfPageCanvases = [];
-                        
-                        viewerPageIndicator.textContent = `第 1 / ${totalPages} 页`;
-                        viewerContent.innerHTML = '';
-                        
-                        viewerScrollHandler = () => {
-                            const viewerRect = viewerContent.getBoundingClientRect();
-                            let mostVisiblePage = 1;
-                            let maxVisibleHeight = 0;
+                    const mode = document.querySelector('input[name="import-mode"]:checked').value;
 
-                            pdfPageCanvases.forEach((canvas, index) => {
-                                const canvasRect = canvas.getBoundingClientRect();
-                                const visibleTop = Math.max(viewerRect.top, canvasRect.top);
-                                const visibleBottom = Math.min(viewerRect.bottom, canvasRect.bottom);
-                                const visibleHeight = Math.max(0, visibleBottom - visibleTop);
-
-                                if (visibleHeight > maxVisibleHeight) {
-                                    maxVisibleHeight = visibleHeight;
-                                    mostVisiblePage = index + 1;
-                                }
-                            });
-                            viewerPageIndicator.textContent = `第 ${mostVisiblePage} / ${totalPages} 页`;
-                        };
-                        viewerContent.addEventListener('scroll', viewerScrollHandler);
-
-                        for (let i = 1; i <= totalPages; i++) {
-                            const page = await pdfDoc.getPage(i);
-                            const pixelRatio = window.devicePixelRatio || 1;
-                            const viewport = page.getViewport({ scale: pixelRatio * 1.5 });
-                            const canvas = document.createElement('canvas');
-                            const context = canvas.getContext('2d');
-                            canvas.height = viewport.height;
-                            canvas.width = viewport.width;
-
-                            const renderContext = { canvasContext: context, viewport: viewport };
-                            await page.render(renderContext).promise;
-                            viewerContent.appendChild(canvas);
-                            pdfPageCanvases.push(canvas);
-                        }
-                    };
-                    
-                    pdfjsLib.getDocument(currentObjectUrl).promise.then(setupPdfViewer).catch(err => {
-                        console.error('PDF.js error:', err);
-                        viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览此PDF文件。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`;
-                    });
-
-                } else if (type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || filename.endsWith('.docx')) {
-                    viewerContent.innerHTML = `<div class="loader"></div>`;
-                    setTimeout(async () => {
+                    const processImport = async (merge) => {
+                        showInfoModal('正在写入数据库，请稍候...');
                         try {
-                            const arrayBuffer = await file.file.arrayBuffer();
-                            const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
-                            const previewContainer = document.createElement('div');
-                            previewContainer.className = 'docx-preview-container';
-                            previewContainer.innerHTML = result.value;
-                            viewerContent.innerHTML = '';
-                            viewerContent.appendChild(previewContainer);
+                            let notesAdded = 0, notesSkipped = 0;
+                            let filesAdded = 0, filesSkipped = 0;
 
-                            viewerScrollHandler = () => {
-                                const { scrollTop, scrollHeight, clientHeight } = viewerContent;
-                                if (clientHeight > 0) {
-                                    const totalPages = Math.max(1, Math.ceil(scrollHeight / clientHeight));
-                                    const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 1;
-                                    let currentPage = Math.floor(scrollTop / clientHeight) + 1;
-                                    if (isAtBottom) {
-                                        currentPage = totalPages;
-                                    }
-                                    viewerPageIndicator.textContent = `第 ${currentPage} / ${totalPages} 页 (预估)`;
+                            // 1. 处理文案
+                            if (mode === 'overwrite') {
+                                await dbActions.clear();
+                                groupOrder = iGo;
+                                notesAdded = iN.length;
+                            } else {
+                                const currentContent = new Set(notes.map(n => n.content));
+                                const initialLen = iN.length;
+                                iN = iN.filter(n => !currentContent.has(n.content));
+                                notesAdded = iN.length;
+                                notesSkipped = initialLen - notesAdded;
+                                iGo.forEach(g => { if (!groupOrder.includes(g)) groupOrder.push(g); });
+                            }
+                            saveGroupOrder();
+
+                            for (const n of iN) {
+                                const noteObj = { ...n, type: 'note' };
+                                delete noteObj.id; 
+                                if(!noteObj.createdAt) noteObj.createdAt = new Date().toISOString();
+                                await dbActions.add(noteObj);
+                            }
+
+                            // 2. 处理文件
+                            for (const f of iF) {
+                                if (mode === 'append' && !merge) {
+                                    const exists = files.some(existing => existing.filename === f.filename);
+                                    if (exists) { filesSkipped++; continue; }
                                 }
-                            };
-                            viewerContent.addEventListener('scroll', viewerScrollHandler);
-                            viewerScrollHandler();
+                                if (f.file && typeof f.file === 'string') {
+                                    const blob = base64ToBlob(f.file);
+                                    if (blob) {
+                                        f.file = blob;
+                                        delete f.id;
+                                        await dbActions.add(f);
+                                        filesAdded++;
+                                    }
+                                }
+                            }
+
+                            if (iT && mode === 'overwrite') {
+                                applyTheme(iT.hue, iT.sat, iT.light);
+                                loadTheme();
+                            }
+
+                            await refreshUI();
+                            hideModal(importOptionsModalOverlay);
+                            closeSidebar();
+                            hideInfoModal();
+                            
+                            // 🌟 优化后的弹窗文案（支持HTML排版，无Emoji，有间距）
+                            let resultHTML = '';
+                            if (mode === 'overwrite') {
+                                resultHTML = `
+                                    <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 1.1em;">导入已完成 (覆盖模式)</div>
+                                    <div style="margin-bottom: 5px;"><strong>文案数据</strong></div>
+                                    <div style="padding-left: 10px; margin-bottom: 10px; color: var(--subtle-text-color);">
+                                        共恢复：${notesAdded} 条
+                                    </div>
+                                    <div style="margin-bottom: 5px;"><strong>文件数据</strong></div>
+                                    <div style="padding-left: 10px; color: var(--subtle-text-color);">
+                                        共恢复：${filesAdded} 个
+                                    </div>
+                                `;
+                            } else {
+                                resultHTML = `
+                                    <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 1.1em;">导入已完成 (添加模式)</div>
+                                    <div style="margin-bottom: 5px;"><strong>文案部分</strong></div>
+                                    <div style="padding-left: 10px; margin-bottom: 15px; color: var(--subtle-text-color);">
+                                        成功新增：${notesAdded} 条<br>
+                                        跳过重复：${notesSkipped} 条
+                                    </div>
+                                    <div style="margin-bottom: 5px;"><strong>文件部分</strong></div>
+                                    <div style="padding-left: 10px; color: var(--subtle-text-color);">
+                                        成功新增：${filesAdded} 个<br>
+                                        跳过重复：${filesSkipped} 个
+                                    </div>
+                                `;
+                            }
+                            showInfoModal(resultHTML);
 
                         } catch (err) {
-                            console.error('Mammoth.js error:', err);
-                            viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览此DOCX文件。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`;
+                            console.error(err);
+                            hideInfoModal();
+                            showInfoModal('写入出错：' + err.message);
                         }
-                    }, 50);
-                } else if (type.startsWith('text/') || type === 'application/json') {
-                    element = document.createElement('pre');
-                    element.textContent = await file.file.text();
-                } else {
-                    viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览此文件类型。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`;
-                }
-                
-                if (element) viewerContent.appendChild(element);
-                showModal(viewerModalOverlay);
-            };
+                    };
 
-            const hideViewer = () => {
-                hideModal(viewerModalOverlay);
-                viewerContent.innerHTML = '';
-                if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-                currentObjectUrl = null;
-
-                if (currentPdfDoc) {
-                    currentPdfDoc.destroy();
-                    currentPdfDoc = null;
-                }
-                
-                if (viewerScrollHandler) {
-                    viewerContent.removeEventListener('scroll', viewerScrollHandler);
-                    viewerScrollHandler = null;
-                }
-            };
-            cancelBtn.addEventListener('click', hideNoteModal); noteModalOverlay.addEventListener('click', e => { if (e.target === noteModalOverlay) hideNoteModal(); });
-            cancelFileBtn.addEventListener('click', hideFileModal); fileModalOverlay.addEventListener('click', e => { if (e.target === fileModalOverlay) hideFileModal(); });
-            confirmYesBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(true); hideConfirmModal(); }); confirmNoBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(false); hideConfirmModal(); });
-            infoOkBtn.addEventListener('click', hideInfoModal); infoModalOverlay.addEventListener('click', e => { if (e.target === infoModalOverlay) hideInfoModal(); });
-            closeViewerBtn.addEventListener('click', hideViewer);
-            viewerModalOverlay.addEventListener('click', e => {
-                if (e.target === viewerModalOverlay) {
-                    hideViewer();
-                }
-            });
-            const openSidebar = () => { sidebar.classList.add('open'); sidebarOverlay.classList.add('visible'); };
-            const closeSidebar = () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); };
-            hamburgerMenu.addEventListener('click', openSidebar); sidebarOverlay.addEventListener('click', closeSidebar); addNoteBtn.addEventListener('click', () => showNoteModal('add'));
-            groupList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.group) { currentFilterGroup = li.dataset.group; refreshUI(); closeSidebar(); } });
-            
-            // --- (新) 多关键词搜索逻辑 (已修改) ---
-            const renderKeywords = () => {
-                // 1. 移除旧标签
-                searchWrapper.querySelectorAll('.keyword-tag').forEach(tag => tag.remove());
-                
-                // 2. 添加新标签
-                searchKeywords.forEach(keyword => {
-                    const tag = document.createElement('span');
-                    tag.className = 'keyword-tag';
-                    const safeKeyword = escapeHTML(keyword);
-                    tag.innerHTML = `
-                        <span>${safeKeyword}</span>
-                        <button class="remove-tag" data-keyword="${safeKeyword}" title="移除">&times;</button>
-                    `;
-                    // 插在 input 前面
-                    searchWrapper.insertBefore(tag, searchInput);
-                });
-                
-                // 3. 触发搜索
-                renderItems();
-            };
-
-            // (新) 监听 input 事件，用于创建标签 (更兼容移动端)
-            searchInput.addEventListener('input', (e) => {
-                const value = searchInput.value;
-                
-                // 1. 检查是否以空格结尾
-                if (value.endsWith(' ') && value.trim() !== '') {
-                    // 是空格，创建标签
-                    const keyword = value.slice(0, -1).trim(); // 获取空格前的内容
-                    if (keyword && !searchKeywords.includes(keyword)) {
-                        searchKeywords.push(keyword);
-                    }
-                    searchInput.value = ''; // 清空输入框
-                    renderKeywords(); // 渲染新标签
-                }
-                
-                // 无论如何都重新渲染条目
-                renderItems();
-            });
-
-            // (新) 监听 keydown 事件，仅用于处理退格键
-            searchInput.addEventListener('keydown', (e) => {
-                // 2. 按下退格键 (Backspace)
-                if (e.key === 'Backspace' && searchInput.value === '' && searchKeywords.length > 0) {
-                    e.preventDefault();
-                    const lastKeyword = searchKeywords.pop();
-                    searchInput.value = lastKeyword + ' '; // 加个空格方便编辑
-                    renderKeywords(); // 移除标签
-                    renderItems(); // (新) 确保退格后也更新搜索
-                }
-            });
-
-
-            searchWrapper.addEventListener('click', (e) => {
-                // 3. 点击 "x" 移除标签
-                if (e.target.classList.contains('remove-tag')) {
-                    const keywordToRemove = e.target.dataset.keyword;
-                    searchKeywords = searchKeywords.filter(k => k !== keywordToRemove);
-                    renderKeywords();
-                }
-                // 4. 点击空白处聚焦 input
-                else if (e.target === searchWrapper || e.target.classList.contains('keyword-tag')) {
-                    searchInput.focus();
-                }
-            });
-            // --- 结束 多关键词搜索逻辑 ---
-
-            document.addEventListener('click', (e) => { // (F3) 增加点击空白处关闭搜索筛选
-                if (!searchFilterModal.contains(e.target) && e.target !== searchFilterBtn) {
-                    hideSearchFilterModal();
-                }
-            });
-            
-            // --- 辅助与刷新函数 ---
-            const refreshUI = async () => { files = await dbActions.getAll(); renderGroups(); renderItems(); };
-            let copyTimeout; const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => { clearTimeout(copyTimeout); copyFeedback.classList.add('show'); copyTimeout = setTimeout(() => copyFeedback.classList.remove('show'), 1500); }).catch(() => showInfoModal('复制失败！')); };
-            
-            // --- 拖拽排序 ---
-            let draggedItem = null;
-            groupList.addEventListener('dragstart', (e) => {
-                if (e.target.classList.contains('draggable')) {
-                    draggedItem = e.target;
-                    const rect = e.target.getBoundingClientRect();
-                    const offsetX = e.clientX - rect.left;
-                    const offsetY = e.clientY - rect.top;
-                    e.dataTransfer.setDragImage(e.target, offsetX, offsetY);
-                    setTimeout(() => e.target.classList.add('dragging'), 0);
-                }
-            });
-            groupList.addEventListener('dragover', (e) => { e.preventDefault(); const afterElement = getDragAfterElement(groupList, e.clientY); const current = document.querySelector('.dragging'); if (afterElement == null) { groupList.appendChild(current); } else { groupList.insertBefore(current, afterElement); } });
-            groupList.addEventListener('dragend', () => { if(draggedItem) draggedItem.classList.remove('dragging'); });
-            groupList.addEventListener('drop', () => { const newOrder = [...groupList.querySelectorAll('.draggable')].map(li => li.dataset.group); groupOrder = newOrder; saveGroupOrder(); });
-            function getDragAfterElement(container, y) { const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')]; return draggableElements.reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2; if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } else { return closest; } }, { offset: Number.NEGATIVE_INFINITY }).element; }
-
-            // --- 初始化 ---
-            
-            /** (F2) migrateData (已修改) - 增加旧数据时间戳兼容 */
-            const migrateData = () => {
-                let nc = false;
-                const n = JSON.parse(localStorage.getItem('notes-app-data')) || [];
-                const m = n.map(note => {
-                    if (!note.type) {
-                        note.type = 'note';
-                        nc = true;
-                    }
-                    // (F2) 兼容旧数据, 用id作为createdAt
-                    if (!note.createdAt) {
-                        note.createdAt = new Date(note.id).toISOString();
-                        nc = true;
-                    }
-                    return note;
-                });
-                if (nc) {
-                    localStorage.setItem('notes-app-data', JSON.stringify(m));
-                }
-                notes = m;
-                groupOrder = JSON.parse(localStorage.getItem('group-order-data')) || [];
-            };
-            
-            const setupGroupInput = (input, dropdown, toggle) => {
-                toggle.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (dropdown.classList.contains('visible')) {
-                        dropdown.classList.remove('visible');
+                    if (mode === 'overwrite') {
+                        showConfirmModal('此操作将覆盖所有数据，确定吗？', async (c) => {
+                            if (c) await processImport(true);
+                            else e.target.value = '';
+                        }, { danger: true, yesText: '确定覆盖' });
                     } else {
-                        renderGroupDropdown(input, dropdown);
+                        await processImport(false);
                     }
-                });
-                input.addEventListener('focus', () => renderGroupDropdown(input, dropdown));
-                input.addEventListener('input', () => renderGroupDropdown(input, dropdown));
-                document.addEventListener('click', (e) => { if (!input.parentElement.contains(e.target)) dropdown.classList.remove('visible'); });
+                } catch (err) {
+                    hideInfoModal();
+                    showInfoModal('导入失败！文件可能损坏。');
+                } finally { e.target.value = ''; }
             };
-            setupGroupInput(noteGroupInput, noteGroupDropdown, noteForm.querySelector('.group-dropdown-toggle'));
-            setupGroupInput(fileGroupInput, fileGroupDropdown, fileForm.querySelector('.group-dropdown-toggle'));
-
-            loadTheme();
-            await initDB();
-            migrateData();
-            // (F3) 新增: 加载搜索筛选
-            searchFilterGroups = JSON.parse(localStorage.getItem('search-filter-groups')) || [];
-            updateSearchFilterBtnState();
-            
-            await refreshUI();
+            reader.readAsText(file);
         });
-    </script>
+
+        // --- 10. 导出逻辑 ---
+        const blobToBase64 = b => new Promise((res, rej) => { const r = new FileReader(); r.readAsDataURL(b); r.onload = () => res(r.result); r.onerror = e => rej(e); });
+        exportBtn.addEventListener('click', async () => { 
+            if (notes.length === 0 && files.length === 0) { showInfoModal('没有数据可以导出。'); return; } 
+            showInfoModal('正在打包数据，请耐心等待...'); 
+            const filesForExport = []; 
+            for (const f of files) { 
+                if (f.file) { 
+                    const b64 = await blobToBase64(f.file); 
+                    filesForExport.push({ ...f, file: b64 }); 
+                } 
+            } 
+            const data = { notes, files: filesForExport, groupOrder, theme: JSON.parse(localStorage.getItem('theme')) || presetThemes[0] }; 
+            const str = JSON.stringify(data); 
+            const blob = new Blob([str], { type: 'application/json' }); 
+            const url = URL.createObjectURL(blob); 
+            const a = document.createElement('a'); 
+            const d = new Date(); 
+            a.download = `数据备份_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`; 
+            a.href = url; a.click(); URL.revokeObjectURL(url); 
+            hideInfoModal();
+            closeSidebar(); 
+        });
+
+        // --- 11. UI 交互杂项 ---
+        const showModal = (o) => { o.classList.add('visible'); docBody.classList.add('modal-open'); };
+        const hideModal = (o) => { o.classList.remove('visible'); docBody.classList.remove('modal-open'); };
+        const showNoteModal = (mode = 'add', note = null) => { noteForm.reset(); modalTitle.textContent = mode === 'edit' ? '编辑文案' : '添加新文案'; noteIdInput.value = note?.id || ''; noteContentInput.value = note?.content || ''; noteGroupInput.value = note?.group || ''; noteRemarkInput.value = note?.remark || ''; showModal(noteModalOverlay); };
+        const hideNoteModal = () => hideModal(noteModalOverlay);
+        const showFileModal = (mode = 'add', file = null) => { fileForm.reset(); fileModalTitle.textContent = mode === 'edit' ? '编辑文件详情' : '文件详情'; fileIdInput.value = file?.id || ''; fileNameDisplay.value = file?.filename || tempFile?.name || '未知文件'; fileGroupInput.value = file?.group || ''; fileRemarkInput.value = file?.remark || ''; showModal(fileModalOverlay); };
+        const hideFileModal = () => hideModal(fileModalOverlay);
+        const showConfirmModal = (msg, cb, opt={}) => { confirmModalText.textContent = msg; confirmYesBtn.textContent = opt.yesText || '确定'; confirmNoBtn.textContent = opt.noText || '取消'; confirmCallback = cb; showModal(confirmModalOverlay); };
+        const hideConfirmModal = () => hideModal(confirmModalOverlay);
+        
+        // 🌟 核心修改：支持 HTML 内容的 showInfoModal，并优化行间距
+        const showInfoModal = (msg) => { 
+            // 如果传入的是 HTML (包含 < 符号)，则用 innerHTML，否则用 textContent
+            if (msg.includes('<')) {
+                infoModalText.innerHTML = msg;
+                infoModalText.style.textAlign = 'left'; // 列表左对齐
+            } else {
+                infoModalText.textContent = msg;
+                infoModalText.style.textAlign = 'center'; // 普通短消息居中
+            }
+            // 增加行高，防止文字挤在一起
+            infoModalText.style.lineHeight = '1.8'; 
+            showModal(infoModalOverlay); 
+        };
+        const hideInfoModal = () => hideModal(infoModalOverlay);
+        
+        // HTML 预览
+        const showHtmlViewer = (htmlContent) => {
+            const iframe = document.createElement('iframe'); iframe.style.width = '100%'; iframe.style.border = 'none'; iframe.style.display = 'block'; iframe.style.height = '65vh';
+            htmlViewerContent.innerHTML = ''; htmlViewerContent.appendChild(iframe);
+            try { const doc = iframe.contentWindow.document; doc.open(); doc.write(htmlContent); doc.close(); } catch (e) { htmlViewerContent.innerHTML = '<p>预览加载失败。</p>'; return; }
+            setTimeout(() => { try { const body = iframe.contentWindow.document.body; const html = iframe.contentWindow.document.documentElement; body.style.margin = '0'; const height = Math.max( body.scrollHeight, body.offsetHeight, html.clientHeight, html.scrollHeight, html.offsetHeight ); iframe.style.height = (height + 2) + 'px'; } catch (e) { iframe.style.height = '65vh'; } }, 100);
+            showModal(htmlViewerOverlay);
+        };
+        const hideHtmlViewer = () => { hideModal(htmlViewerOverlay); const iframe = htmlViewerContent.querySelector('iframe'); if (iframe) iframe.src = 'about:blank'; htmlViewerContent.innerHTML = ''; };
+        htmlViewerCloseBtn.addEventListener('click', hideHtmlViewer); htmlViewerOverlay.addEventListener('click', e => { if (e.target === htmlViewerOverlay) hideHtmlViewer(); });
+
+        // 搜索筛选
+        const updateSearchFilterBtnState = () => { if (searchFilterGroups.length > 0) { searchFilterBtn.classList.add('active'); searchFilterBtn.textContent = `▽ (${searchFilterGroups.length})`; } else { searchFilterBtn.classList.remove('active'); searchFilterBtn.textContent = '▽'; } };
+        const showSearchFilterModal = () => { const allGroups = getAllGroups(); searchFilterList.innerHTML = allGroups.length === 0 ? '<p style="color: var(--subtle-text-color); padding: 10px; text-align: center;">暂无分组</p>' : allGroups.map(g => `<label><input type="checkbox" value="${escapeHTML(g)}" ${searchFilterGroups.includes(g) ? 'checked' : ''}> ${escapeHTML(g)}</label>`).join(''); searchFilterModal.classList.add('visible'); };
+        const hideSearchFilterModal = () => searchFilterModal.classList.remove('visible');
+        searchFilterBtn.addEventListener('click', (e) => { e.stopPropagation(); searchFilterModal.classList.contains('visible') ? hideSearchFilterModal() : showSearchFilterModal(); });
+        searchFilterApply.addEventListener('click', () => { searchFilterGroups = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); hideSearchFilterModal(); });
+        searchFilterClear.addEventListener('click', () => { searchFilterGroups = []; saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); hideSearchFilterModal(); });
+        document.addEventListener('click', (e) => { if (!searchFilterModal.contains(e.target) && e.target !== searchFilterBtn) hideSearchFilterModal(); });
+
+        // 文件预览
+        const showViewer = async (file) => {
+            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+            viewerFilename.textContent = file.filename; viewerContent.innerHTML = ''; viewerPageIndicator.textContent = '';
+            const type = file.file.type; const filename = file.filename.toLowerCase(); currentObjectUrl = URL.createObjectURL(file.file); let element;
+            if (type.startsWith('image/')) { element = document.createElement('img'); element.src = currentObjectUrl; }
+            else if (type.startsWith('video/')) { element = document.createElement('video'); element.src = currentObjectUrl; element.controls = true; }
+            else if (type.startsWith('audio/')) { element = document.createElement('audio'); element.src = currentObjectUrl; element.controls = true; }
+            else if (type === 'application/pdf') {
+                viewerContent.innerHTML = `<div class="loader"></div>`;
+                const setupPdfViewer = async (pdfDoc) => {
+                    currentPdfDoc = pdfDoc; const totalPages = pdfDoc.numPages; const pdfPageCanvases = [];
+                    viewerPageIndicator.textContent = `第 1 / ${totalPages} 页`; viewerContent.innerHTML = '';
+                    viewerScrollHandler = () => { const viewerRect = viewerContent.getBoundingClientRect(); let mostVisiblePage = 1, maxVisibleHeight = 0; pdfPageCanvases.forEach((canvas, index) => { const canvasRect = canvas.getBoundingClientRect(); const visibleHeight = Math.max(0, Math.min(viewerRect.bottom, canvasRect.bottom) - Math.max(viewerRect.top, canvasRect.top)); if (visibleHeight > maxVisibleHeight) { maxVisibleHeight = visibleHeight; mostVisiblePage = index + 1; } }); viewerPageIndicator.textContent = `第 ${mostVisiblePage} / ${totalPages} 页`; };
+                    viewerContent.addEventListener('scroll', viewerScrollHandler);
+                    for (let i = 1; i <= totalPages; i++) { const page = await pdfDoc.getPage(i); const viewport = page.getViewport({ scale: window.devicePixelRatio * 1.5 }); const canvas = document.createElement('canvas'); const context = canvas.getContext('2d'); canvas.height = viewport.height; canvas.width = viewport.width; await page.render({ canvasContext: context, viewport: viewport }).promise; viewerContent.appendChild(canvas); pdfPageCanvases.push(canvas); }
+                };
+                pdfjsLib.getDocument(currentObjectUrl).promise.then(setupPdfViewer).catch(() => viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`);
+            } else if (type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || filename.endsWith('.docx')) {
+                viewerContent.innerHTML = `<div class="loader"></div>`;
+                setTimeout(async () => { try { const arrayBuffer = await file.file.arrayBuffer(); const result = await mammoth.convertToHtml({ arrayBuffer }); const div = document.createElement('div'); div.className = 'docx-preview-container'; div.innerHTML = result.value; viewerContent.innerHTML = ''; viewerContent.appendChild(div); } catch (err) { viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`; } }, 50);
+            } else if (type.startsWith('text/') || type === 'application/json') { element = document.createElement('pre'); element.textContent = await file.file.text(); }
+            else { viewerContent.innerHTML = `<div class="unsupported-preview"><p>无法预览。</p><a href="${currentObjectUrl}" download="${file.filename}" class="download-btn">下载文件</a></div>`; }
+            if (element) viewerContent.appendChild(element); showModal(viewerModalOverlay);
+        };
+        const hideViewer = () => { hideModal(viewerModalOverlay); viewerContent.innerHTML = ''; if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; if (currentPdfDoc) { currentPdfDoc.destroy(); currentPdfDoc = null; } if (viewerScrollHandler) { viewerContent.removeEventListener('scroll', viewerScrollHandler); viewerScrollHandler = null; } };
+
+        // 其他UI绑定
+        uploadFileBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => { const f = e.target.files[0]; if (!f) return; tempFile = f; hideNoteModal(); showFileModal('add'); });
+        cancelBtn.addEventListener('click', hideNoteModal); noteModalOverlay.addEventListener('click', e => { if (e.target === noteModalOverlay) hideNoteModal(); });
+        cancelFileBtn.addEventListener('click', hideFileModal); fileModalOverlay.addEventListener('click', e => { if (e.target === fileModalOverlay) hideFileModal(); });
+        confirmYesBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(true); hideConfirmModal(); }); confirmNoBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(false); hideConfirmModal(); });
+        infoOkBtn.addEventListener('click', hideInfoModal); infoModalOverlay.addEventListener('click', e => { if (e.target === infoModalOverlay) hideInfoModal(); });
+        closeViewerBtn.addEventListener('click', hideViewer); viewerModalOverlay.addEventListener('click', e => { if (e.target === viewerModalOverlay) hideViewer(); });
+        hamburgerMenu.addEventListener('click', () => { sidebar.classList.add('open'); sidebarOverlay.classList.add('visible'); }); sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); }); const closeSidebar = () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); };
+        addNoteBtn.addEventListener('click', () => showNoteModal('add'));
+        groupList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.group) { currentFilterGroup = li.dataset.group; refreshUI(); closeSidebar(); } });
+
+        // 多关键词搜索
+        const renderKeywords = () => { searchWrapper.querySelectorAll('.keyword-tag').forEach(tag => tag.remove()); searchKeywords.forEach(keyword => { const tag = document.createElement('span'); tag.className = 'keyword-tag'; tag.innerHTML = `<span>${escapeHTML(keyword)}</span><button class="remove-tag" data-keyword="${escapeHTML(keyword)}" title="移除">&times;</button>`; searchWrapper.insertBefore(tag, searchInput); }); renderItems(); };
+        searchInput.addEventListener('input', () => { const value = searchInput.value; if (value.endsWith(' ') && value.trim() !== '') { const keyword = value.slice(0, -1).trim(); if (keyword && !searchKeywords.includes(keyword)) searchKeywords.push(keyword); searchInput.value = ''; renderKeywords(); } renderItems(); });
+        searchInput.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && searchInput.value === '' && searchKeywords.length > 0) { const last = searchKeywords.pop(); searchInput.value = last + ' '; renderKeywords(); renderItems(); } });
+        searchWrapper.addEventListener('click', (e) => { if (e.target.classList.contains('remove-tag')) { searchKeywords = searchKeywords.filter(k => k !== e.target.dataset.keyword); renderKeywords(); } else if (e.target === searchWrapper || e.target.classList.contains('keyword-tag')) { searchInput.focus(); } });
+
+        // 复制与拖拽
+        let copyTimeout; const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => { clearTimeout(copyTimeout); copyFeedback.classList.add('show'); copyTimeout = setTimeout(() => copyFeedback.classList.remove('show'), 1500); }).catch(() => showInfoModal('复制失败！')); };
+        let draggedItem = null;
+        groupList.addEventListener('dragstart', (e) => { if (e.target.classList.contains('draggable')) { draggedItem = e.target; setTimeout(() => e.target.classList.add('dragging'), 0); } });
+        groupList.addEventListener('dragover', (e) => { e.preventDefault(); const afterElement = [...groupList.querySelectorAll('.draggable:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset: offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterElement == null) groupList.appendChild(document.querySelector('.dragging')); else groupList.insertBefore(document.querySelector('.dragging'), afterElement); });
+        groupList.addEventListener('dragend', () => { if(draggedItem) draggedItem.classList.remove('dragging'); const newOrder = [...groupList.querySelectorAll('.draggable')].map(li => li.dataset.group); groupOrder = newOrder; saveGroupOrder(); });
+
+        const setupGroupInput = (input, dropdown, toggle) => {
+            const render = () => { const f = input.value.toLowerCase(); const g = getAllGroups().filter(grp => grp.toLowerCase().includes(f)); dropdown.innerHTML = ''; if (g.length > 0) { [...new Set(g)].forEach(grp => { const i = document.createElement('div'); i.className = 'dropdown-item'; i.textContent = grp; i.addEventListener('mousedown', () => { input.value = grp; dropdown.classList.remove('visible'); }); dropdown.appendChild(i); }); dropdown.classList.add('visible'); } else { dropdown.classList.remove('visible'); } };
+            toggle.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.contains('visible') ? dropdown.classList.remove('visible') : render(); });
+            input.addEventListener('focus', render); input.addEventListener('input', render);
+            document.addEventListener('click', (e) => { if (!input.parentElement.contains(e.target)) dropdown.classList.remove('visible'); });
+        };
+        setupGroupInput(noteGroupInput, noteGroupDropdown, noteForm.querySelector('.group-dropdown-toggle'));
+        setupGroupInput(fileGroupInput, fileGroupDropdown, fileForm.querySelector('.group-dropdown-toggle'));
+
+        // --- 12. 启动与迁移 ---
+        loadTheme();
+        await initDB();
+        
+        // 自动迁移旧数据：如果发现 localStorage 还有旧文案，迁移到 IndexedDB
+        const oldNotes = JSON.parse(localStorage.getItem('notes-app-data'));
+        if (oldNotes && Array.isArray(oldNotes) && oldNotes.length > 0) {
+            console.log('检测到旧缓存数据，正在迁移到数据库...');
+            for (const n of oldNotes) {
+                const noteObj = { ...n, type: 'note' };
+                delete noteObj.id;
+                await dbActions.add(noteObj);
+            }
+            localStorage.removeItem('notes-app-data'); 
+        }
+
+        groupOrder = JSON.parse(localStorage.getItem('group-order-data')) || [];
+        searchFilterGroups = JSON.parse(localStorage.getItem('search-filter-groups')) || [];
+        updateSearchFilterBtnState();
+        await refreshUI();
+    });
+</script>
+
 </body>
 </html>
