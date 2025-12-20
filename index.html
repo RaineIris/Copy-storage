@@ -547,6 +547,58 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', async () => {
+        // --- 0. (修改) 动态注入多选模式的 CSS 样式 ---
+        const style = document.createElement('style');
+        style.textContent = `
+            /* 多选模式下的卡片样式 */
+            body.selection-mode .item-actions, 
+            body.selection-mode #add-note-btn { display: none !important; }
+            
+            body.selection-mode .note-card { cursor: pointer; transition: all 0.2s; position: relative; }
+            
+            /* (新) 文件卡片变灰且不可点击 */
+            body.selection-mode .file-card { 
+                opacity: 0.5; 
+                filter: grayscale(100%); 
+                pointer-events: none; /* 禁止鼠标事件 */
+                cursor: not-allowed;
+            }
+
+            /* (新) 锁死汉堡菜单 */
+            body.selection-mode #hamburger-menu {
+                pointer-events: none;
+                opacity: 0.3;
+            }
+
+            body.selection-mode .note-card::after {
+                content: ''; position: absolute; top: 10px; right: 10px; width: 20px; height: 20px;
+                border: 2px solid var(--border-color); border-radius: 50%; background: white; transition: all 0.2s;
+            }
+            body.selection-mode .note-card.selected { border-color: var(--button-bg); background-color: #f0f7ff; transform: scale(0.98); }
+            body.selection-mode .note-card.selected::after {
+                background-color: var(--button-bg); border-color: var(--button-bg);
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='14px' height='14px'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+                background-position: center; background-repeat: no-repeat;
+            }
+            /* 底部操作栏 */
+            #selection-bar {
+                position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card-bg);
+                padding: 15px 20px; box-shadow: 0 -4px 12px rgba(0,0,0,0.15); z-index: 3000;
+                display: flex; justify-content: space-between; align-items: center;
+                transform: translateY(120%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-sizing: border-box;
+            }
+            #selection-bar.visible { transform: translateY(0); }
+            .selection-info { font-weight: bold; color: var(--theme-color-darker); }
+            .selection-actions { display: flex; gap: 10px; }
+            .selection-actions button {
+                padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);
+                background: white; cursor: pointer; font-size: 0.9em;
+            }
+            #sel-export-btn { background-color: var(--button-bg); color: white; border-color: var(--button-bg); }
+        `;
+        document.head.appendChild(style);
+
         // --- 1. 核心数据库设置 (IndexedDB) ---
         let db; 
         const DB_NAME = 'files-db'; 
@@ -604,11 +656,13 @@
         const searchInput = document.getElementById('search-input'), searchWrapper = document.getElementById('multi-search-wrapper');
         const searchFilterBtn = document.getElementById('search-filter-btn'), searchFilterModal = document.getElementById('search-filter-modal'), searchFilterList = document.getElementById('search-filter-list'), searchFilterClear = document.getElementById('search-filter-clear'), searchFilterApply = document.getElementById('search-filter-apply');
         const htmlViewerOverlay = document.getElementById('html-viewer-overlay'), htmlViewerContent = document.getElementById('html-viewer-content'), htmlViewerCloseBtn = document.getElementById('html-viewer-close-btn');
+        const sidebarActions = document.querySelector('.sidebar-actions');
 
         // --- 4. 数据与状态 ---
         let notes = [], files = [], groupOrder = [], currentFilterGroup = 'all', confirmCallback = null, tempFile = null, currentObjectUrl = null;
         let currentPdfDoc = null, viewerScrollHandler = null;
         let searchFilterGroups = [], searchKeywords = [];
+        let isSelectionMode = false; // 新增：多选模式状态
 
         // --- 5. 主题美化 ---
         const presetThemes = [ { name: '默认 · 宝蓝', hue: 215, sat: 50, light: 50, value: '#4069bf' }, { name: '草莓奶昔', hue: 345, sat: 80, light: 88, value: '#fcdbe4' }, { name: '奶油黄', hue: 55, sat: 75, light: 75, value: '#f2e6a4' }, { name: '薄荷马卡龙', hue: 150, sat: 55, light: 85, value: '#c7f2de' }, { name: '海盐冰淇淋', hue: 195, sat: 70, light: 82, value: '#bce6f7' }, { name: '香芋布丁', hue: 260, sat: 65, light: 88, value: '#e6dff9' }, { name: '蜜桃苏打', hue: 20, sat: 90, light: 80, value: '#fcd3c4' }, { name: '宝宝蓝', hue: 210, sat: 70, light: 80, value: '#b8d6f5' }, { name: '抹茶拿铁', hue: 95, sat: 35, light: 80, value: '#d5e6c7' }, { name: '焦糖饼干', hue: 30, sat: 50, light: 75, value: '#e6ccb3' }, ];
@@ -680,6 +734,9 @@
             }
             const allContentDivs = itemsContainer.querySelectorAll('.note-content'); 
             allContentDivs.forEach(div => { if (div.scrollHeight > (parseFloat(getComputedStyle(div).lineHeight) * 5)) div.classList.add('collapsible'); });
+
+            // 如果在选择模式下刷新了（例如筛选改变），需要退出选择模式或重新绑定
+            if (isSelectionMode) exitSelectionMode();
         };
 
         const highlightText = (text, terms) => {
@@ -778,6 +835,18 @@
         itemsContainer.addEventListener('click', async (e) => {
             const card = e.target.closest('.note-card, .file-card');
             if (!card) return;
+
+            // --- (新增) 多选模式拦截 ---
+            if (isSelectionMode) {
+                // (新) 禁止选中文件
+                if (card.dataset.type === 'file') return;
+
+                card.classList.toggle('selected');
+                updateSelectionCount();
+                return; // 阻止后续逻辑（如预览、编辑）
+            }
+            // ---------------------------
+
             const id = parseInt(card.dataset.id, 10);
             const type = card.dataset.type;
             const targetIsActionButton = e.target.closest('.item-actions');
@@ -1112,8 +1181,26 @@
         confirmYesBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(true); hideConfirmModal(); }); confirmNoBtn.addEventListener('click', () => { if(confirmCallback) confirmCallback(false); hideConfirmModal(); });
         infoOkBtn.addEventListener('click', hideInfoModal); infoModalOverlay.addEventListener('click', e => { if (e.target === infoModalOverlay) hideInfoModal(); });
         closeViewerBtn.addEventListener('click', hideViewer); viewerModalOverlay.addEventListener('click', e => { if (e.target === viewerModalOverlay) hideViewer(); });
-        hamburgerMenu.addEventListener('click', () => { sidebar.classList.add('open'); sidebarOverlay.classList.add('visible'); }); sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); }); const closeSidebar = () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); };
-        addNoteBtn.addEventListener('click', () => showNoteModal('add'));
+        
+        // (修改) 锁死汉堡菜单: 如果处于选择模式，阻止打开侧边栏
+        hamburgerMenu.addEventListener('click', () => { 
+            if (isSelectionMode) return; 
+            sidebar.classList.add('open'); 
+            sidebarOverlay.classList.add('visible'); 
+        }); 
+        
+        sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); }); const closeSidebar = () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); };
+        
+        // --- 添加文案按钮逻辑：自动填充分组 ---
+        addNoteBtn.addEventListener('click', () => {
+            showNoteModal('add');
+            // 如果当前不在"全部"、"文案"或"文件"这些特殊视图下，则预填分组
+            const specialGroups = ['all', 'notes_only', 'files_only'];
+            if (currentFilterGroup && !specialGroups.includes(currentFilterGroup)) {
+                noteGroupInput.value = currentFilterGroup;
+            }
+        });
+
         groupList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.group) { currentFilterGroup = li.dataset.group; refreshUI(); closeSidebar(); } });
 
         const renderKeywords = () => { searchWrapper.querySelectorAll('.keyword-tag').forEach(tag => tag.remove()); searchKeywords.forEach(keyword => { const tag = document.createElement('span'); tag.className = 'keyword-tag'; tag.innerHTML = `<span>${escapeHTML(keyword)}</span><button class="remove-tag" data-keyword="${escapeHTML(keyword)}" title="移除">&times;</button>`; searchWrapper.insertBefore(tag, searchInput); }); renderItems(); };
@@ -1135,6 +1222,122 @@
         };
         setupGroupInput(noteGroupInput, noteGroupDropdown, noteForm.querySelector('.group-dropdown-toggle'));
         setupGroupInput(fileGroupInput, fileGroupDropdown, fileForm.querySelector('.group-dropdown-toggle'));
+
+        // --- 13. 分享与多选功能 ---
+
+        // 13.1 创建“分享”按钮并添加到侧边栏
+        const shareBtn = document.createElement('button');
+        shareBtn.textContent = '分享';
+        shareBtn.id = 'share-btn';
+        if (sidebarActions) {
+            sidebarActions.insertBefore(shareBtn, sidebarActions.firstChild); // 放在第一个
+        }
+        
+        // 13.2 创建底部操作栏
+        const selectionBar = document.createElement('div');
+        selectionBar.id = 'selection-bar';
+        selectionBar.innerHTML = `
+            <div class="selection-info">已选: <span id="sel-count">0</span></div>
+            <div class="selection-actions">
+                <button id="sel-all-btn">全选</button>
+                <button id="sel-inv-btn">反选</button>
+                <button id="sel-cancel-btn">取消</button>
+                <button id="sel-export-btn">导出TXT</button>
+            </div>
+        `;
+        document.body.appendChild(selectionBar);
+        
+        const selCountSpan = document.getElementById('sel-count');
+        
+        // 13.3 功能逻辑
+        const updateSelectionCount = () => {
+            const count = itemsContainer.querySelectorAll('.note-card.selected').length;
+            selCountSpan.textContent = count;
+        };
+
+        const enterSelectionMode = () => {
+            isSelectionMode = true;
+            document.body.classList.add('selection-mode');
+            selectionBar.classList.add('visible');
+            closeSidebar(); // 关闭侧边栏
+            
+            // 清空之前的选择
+            itemsContainer.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+            updateSelectionCount();
+            
+            // (修改) 不再弹窗提示
+        };
+
+        const exitSelectionMode = () => {
+            isSelectionMode = false;
+            document.body.classList.remove('selection-mode');
+            selectionBar.classList.remove('visible');
+            itemsContainer.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        };
+
+        shareBtn.addEventListener('click', enterSelectionMode);
+
+        document.getElementById('sel-cancel-btn').addEventListener('click', exitSelectionMode);
+
+        // (修改) 全选/取消全选 智能切换
+        document.getElementById('sel-all-btn').addEventListener('click', () => {
+            const allNotes = itemsContainer.querySelectorAll('.note-card');
+            const allSelected = itemsContainer.querySelectorAll('.note-card.selected');
+            
+            if (allNotes.length > 0 && allNotes.length === allSelected.length) {
+                // 如果已经全部选中，则取消全选
+                allNotes.forEach(el => el.classList.remove('selected'));
+            } else {
+                // 否则，全选
+                allNotes.forEach(el => el.classList.add('selected'));
+            }
+            updateSelectionCount();
+        });
+
+        document.getElementById('sel-inv-btn').addEventListener('click', () => {
+            itemsContainer.querySelectorAll('.note-card').forEach(el => el.classList.toggle('selected'));
+            updateSelectionCount();
+        });
+
+        document.getElementById('sel-export-btn').addEventListener('click', () => {
+            const selectedEls = itemsContainer.querySelectorAll('.note-card.selected'); // 仅导本文案
+            const count = selectedEls.length;
+            if (count === 0) {
+                showInfoModal('请至少选择一条文案！<br><small>暂不支持导出文件</small>');
+                return;
+            }
+
+            // 收集内容
+            const contents = [];
+            selectedEls.forEach(el => {
+                const id = parseInt(el.dataset.id);
+                const note = notes.find(n => n.id === id);
+                if (note) contents.push(note.content);
+            });
+
+            // 生成TXT
+            const textContent = contents.join('\n\n'); // 用空行隔开
+            const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            // 文件名处理：如果有分组名则用分组名，否则用日期
+            let filename = '文案分享';
+            if (currentFilterGroup && !['all', 'notes_only', 'files_only'].includes(currentFilterGroup)) {
+                filename = currentFilterGroup;
+            } else {
+                const d = new Date();
+                filename += `_${d.getMonth()+1}-${d.getDate()}`;
+            }
+            
+            a.download = `${filename}.txt`;
+            a.href = url;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            exitSelectionMode();
+            showInfoModal(`成功导出 ${count} 条文案！`);
+        });
 
         // --- 12. 启动与迁移 ---
         loadTheme();
