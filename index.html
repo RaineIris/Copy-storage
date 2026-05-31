@@ -545,6 +545,31 @@
     </div>
 
 
+    <div class="modal-overlay" id="export-options-modal-overlay">
+        <div class="modal" id="export-options-modal">
+            <h3>导出选项</h3>
+            <div class="form-group">
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="export-scope" value="all" checked>
+                        <strong>全部导出</strong>
+                        <small>导出所有文案与文件。</small>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="export-scope" value="group">
+                        <strong>按分组导出</strong>
+                        <small>仅导出选中分组的内容。</small>
+                    </label>
+                </div>
+            </div>
+            <div id="export-group-picker" style="display:none;margin-top:8px;max-height:180px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px;padding:8px 12px;"></div>
+            <div class="modal-buttons" style="margin-top:16px;">
+                <button type="button" id="export-options-cancel-btn">取消</button>
+                <button type="button" id="export-options-confirm-btn">导出</button>
+            </div>
+        </div>
+    </div>
+
     <script>
     document.addEventListener('DOMContentLoaded', async () => {
         // --- 0. (修改) 动态注入多选模式的 CSS 样式 ---
@@ -1022,26 +1047,67 @@
 
         // --- 10. 导出逻辑 ---
         const blobToBase64 = b => new Promise((res, rej) => { const r = new FileReader(); r.readAsDataURL(b); r.onload = () => res(r.result); r.onerror = e => rej(e); });
-        exportBtn.addEventListener('click', async () => { 
-            if (notes.length === 0 && files.length === 0) { showInfoModal('没有数据可以导出。'); return; } 
-            showInfoModal('正在打包数据，请耐心等待...'); 
-            const filesForExport = []; 
-            for (const f of files) { 
-                if (f.file) { 
-                    const b64 = await blobToBase64(f.file); 
-                    filesForExport.push({ ...f, file: b64 }); 
-                } 
-            } 
-            const data = { notes, files: filesForExport, groupOrder, theme: JSON.parse(localStorage.getItem('theme')) || presetThemes[0] }; 
-            const str = JSON.stringify(data); 
-            const blob = new Blob([str], { type: 'application/json' }); 
-            const url = URL.createObjectURL(blob); 
-            const a = document.createElement('a'); 
-            const d = new Date(); 
-            a.download = `数据备份_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`; 
-            a.href = url; a.click(); URL.revokeObjectURL(url); 
+
+        const exportOptionsModalOverlay = document.getElementById('export-options-modal-overlay');
+        const exportGroupPicker = document.getElementById('export-group-picker');
+        const exportOptionsCancelBtn = document.getElementById('export-options-cancel-btn');
+        const exportOptionsConfirmBtn = document.getElementById('export-options-confirm-btn');
+
+        exportBtn.addEventListener('click', () => {
+            if (notes.length === 0 && files.length === 0) { showInfoModal('没有数据可以导出。'); return; }
+            // 填充分组选择列表
+            const allGroups = getAllGroups();
+            exportGroupPicker.innerHTML = allGroups.length === 0
+                ? '<span style="color:var(--subtle-text-color);font-size:0.9em">暂无分组</span>'
+                : allGroups.map(g => `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:0.95em"><input type="checkbox" value="${g}" style="margin:0"> ${g}</label>`).join('');
+            // 重置radio到全部
+            document.querySelector('input[name="export-scope"][value="all"]').checked = true;
+            exportGroupPicker.style.display = 'none';
+            showModal(exportOptionsModalOverlay);
+        });
+
+        document.querySelectorAll('input[name="export-scope"]').forEach(r => {
+            r.addEventListener('change', () => {
+                exportGroupPicker.style.display = r.value === 'group' ? 'block' : 'none';
+            });
+        });
+
+        exportOptionsCancelBtn.addEventListener('click', () => hideModal(exportOptionsModalOverlay));
+
+        exportOptionsConfirmBtn.addEventListener('click', async () => {
+            const scope = document.querySelector('input[name="export-scope"]:checked').value;
+            let exportNotes = notes, exportFiles = files;
+
+            if (scope === 'group') {
+                const selected = [...exportGroupPicker.querySelectorAll('input:checked')].map(cb => cb.value);
+                if (selected.length === 0) { showInfoModal('请至少选择一个分组。'); return; }
+                exportNotes = notes.filter(n => selected.includes(n.group?.trim()));
+                exportFiles = files.filter(f => selected.includes(f.group?.trim()));
+            }
+
+            hideModal(exportOptionsModalOverlay);
+            showInfoModal('正在打包数据，请耐心等待...');
+
+            const filesForExport = [];
+            for (const f of exportFiles) {
+                if (f.file) {
+                    const b64 = await blobToBase64(f.file);
+                    filesForExport.push({ ...f, file: b64 });
+                }
+            }
+            const data = { notes: exportNotes, files: filesForExport, groupOrder, theme: JSON.parse(localStorage.getItem('theme')) || presetThemes[0] };
+            const str = JSON.stringify(data);
+            const blob = new Blob([str], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const d = new Date();
+            const suffix = scope === 'group'
+                ? [...exportGroupPicker.querySelectorAll('input:checked')].map(cb => cb.value).join('_')
+                : '全部';
+            a.download = `数据备份_${suffix}_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`;
+            a.href = url; a.click(); URL.revokeObjectURL(url);
             hideInfoModal();
-            closeSidebar(); 
+            closeSidebar();
         });
 
         // --- 11. UI 交互 ---
