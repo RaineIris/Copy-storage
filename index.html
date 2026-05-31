@@ -1318,6 +1318,8 @@
         const synonymCloseBtn = document.getElementById('synonym-close-btn');
         const synonymBtn = document.getElementById('synonym-btn');
 
+        let editingIdx = -1; // -1表示新增模式，>=0表示编辑某组
+
         const renderSynonymList = () => {
             synonymList.innerHTML = '';
             if (synonymGroups.length === 0) {
@@ -1331,13 +1333,27 @@
                     <div style="flex:1;font-size:0.9em;line-height:1.6;word-break:break-all">
                         ${group.map(w => `<span style="display:inline-block;background:var(--button-bg);color:#fff;border-radius:12px;padding:1px 8px;margin:2px;font-size:0.85em">${escapeHTML(w)}</span>`).join('')}
                     </div>
+                    <button data-idx="${idx}" class="syn-edit-btn" style="flex-shrink:0;padding:4px 10px;font-size:0.82em;background:transparent;border:1px solid var(--border-color);border-radius:6px;cursor:pointer;color:var(--subtle-text-color)">编辑</button>
                     <button data-idx="${idx}" class="syn-del-btn" style="flex-shrink:0;padding:4px 10px;font-size:0.82em;background:transparent;border:1px solid var(--border-color);border-radius:6px;cursor:pointer;color:var(--subtle-text-color)">删除</button>`;
                 synonymList.appendChild(row);
+            });
+            synonymList.querySelectorAll('.syn-edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    editingIdx = parseInt(btn.dataset.idx);
+                    synonymInput.value = synonymGroups[editingIdx].join('，');
+                    synonymAddBtn.textContent = '保存修改';
+                    synonymInput.focus();
+                });
             });
             synonymList.querySelectorAll('.syn-del-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     synonymGroups.splice(parseInt(btn.dataset.idx), 1);
                     saveSynonyms();
+                    if (editingIdx === parseInt(btn.dataset.idx)) {
+                        editingIdx = -1;
+                        synonymInput.value = '';
+                        synonymAddBtn.textContent = '添加';
+                    }
                     renderSynonymList();
                     renderItems();
                 });
@@ -1345,15 +1361,21 @@
         };
 
         synonymBtn.addEventListener('click', () => { renderSynonymList(); showModal(synonymModalOverlay); closeSidebar(); });
-        synonymCloseBtn.addEventListener('click', () => hideModal(synonymModalOverlay));
-        synonymModalOverlay.addEventListener('click', e => { if (e.target === synonymModalOverlay) hideModal(synonymModalOverlay); });
+        synonymCloseBtn.addEventListener('click', () => { editingIdx = -1; synonymInput.value = ''; synonymAddBtn.textContent = '添加'; hideModal(synonymModalOverlay); });
+        synonymModalOverlay.addEventListener('click', e => { if (e.target === synonymModalOverlay) { editingIdx = -1; synonymInput.value = ''; synonymAddBtn.textContent = '添加'; hideModal(synonymModalOverlay); } });
 
         synonymAddBtn.addEventListener('click', () => {
             const val = synonymInput.value.trim();
             if (!val) return;
             const words = val.split(/[,，]/).map(w => w.trim()).filter(w => w.length > 0);
             if (words.length < 2) { showInfoModal('请至少输入两个词，用逗号隔开～'); return; }
-            synonymGroups.push(words);
+            if (editingIdx >= 0) {
+                synonymGroups[editingIdx] = words;
+                editingIdx = -1;
+                synonymAddBtn.textContent = '添加';
+            } else {
+                synonymGroups.push(words);
+            }
             saveSynonyms();
             synonymInput.value = '';
             renderSynonymList();
