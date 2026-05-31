@@ -553,7 +553,7 @@
                     <label class="radio-label">
                         <input type="radio" name="export-scope" value="all" checked>
                         <strong>全部导出</strong>
-                        <small>导出所有文案与文件。</small>
+                        <small>导出所有文案、文件与词义库。</small>
                     </label>
                     <label class="radio-label">
                         <input type="radio" name="export-scope" value="group">
@@ -562,7 +562,11 @@
                     </label>
                 </div>
             </div>
-            <div id="export-group-picker" style="display:none;margin-top:8px;max-height:180px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px;padding:8px 12px;"></div>
+            <div id="export-group-picker" style="display:none;margin-top:8px;max-height:140px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px;padding:8px 12px;"></div>
+            <div id="export-synonym-section" style="margin-top:12px;display:none;">
+                <div style="font-size:0.88em;color:var(--subtle-text-color);margin-bottom:6px;">同时导出词义组（可选）</div>
+                <div id="export-synonym-picker" style="max-height:120px;overflow-y:auto;border:1px solid var(--border-color);border-radius:6px;padding:8px 12px;"></div>
+            </div>
             <div class="modal-buttons" style="margin-top:16px;">
                 <button type="button" id="export-options-cancel-btn">取消</button>
                 <button type="button" id="export-options-confirm-btn">导出</button>
@@ -969,9 +973,9 @@
                 hideInfoModal();
                 try {
                     const parsedData = JSON.parse(event.target.result);
-                    let iN, iF, iGo, iT;
-                    if (Array.isArray(parsedData)) { iN = parsedData; iF = []; iGo = []; iT = null; } 
-                    else { iN = parsedData.notes || []; iF = parsedData.files || []; iGo = parsedData.groupOrder || []; iT = parsedData.theme; }
+                    let iN, iF, iGo, iT, iSyn;
+                    if (Array.isArray(parsedData)) { iN = parsedData; iF = []; iGo = []; iT = null; iSyn = []; } 
+                    else { iN = parsedData.notes || []; iF = parsedData.files || []; iGo = parsedData.groupOrder || []; iT = parsedData.theme; iSyn = parsedData.synonymGroups || []; }
                     
                     const mode = document.querySelector('input[name="import-mode"]:checked').value;
 
@@ -985,6 +989,8 @@
                                 await dbActions.clear();
                                 groupOrder = iGo;
                                 notesAdded = iN.length;
+                                // 覆盖词义库
+                                if (iSyn.length > 0) { synonymGroups = iSyn; saveSynonyms(); }
                             } else {
                                 const currentContent = new Set(notes.map(n => n.content));
                                 const initialLen = iN.length;
@@ -992,6 +998,12 @@
                                 notesAdded = iN.length;
                                 notesSkipped = initialLen - notesAdded;
                                 iGo.forEach(g => { if (!groupOrder.includes(g)) groupOrder.push(g); });
+                                // 追加词义库（跳过完全相同的组）
+                                iSyn.forEach(newG => {
+                                    const exists = synonymGroups.some(g => g.length === newG.length && g.every((w, i) => w === newG[i]));
+                                    if (!exists) synonymGroups.push(newG);
+                                });
+                                if (iSyn.length > 0) saveSynonyms();
                             }
                             saveGroupOrder();
 
@@ -1086,25 +1098,39 @@
 
         const exportOptionsModalOverlay = document.getElementById('export-options-modal-overlay');
         const exportGroupPicker = document.getElementById('export-group-picker');
+        const exportSynonymSection = document.getElementById('export-synonym-section');
+        const exportSynonymPicker = document.getElementById('export-synonym-picker');
         const exportOptionsCancelBtn = document.getElementById('export-options-cancel-btn');
         const exportOptionsConfirmBtn = document.getElementById('export-options-confirm-btn');
 
+        const refreshExportSynonymPicker = () => {
+            exportSynonymPicker.innerHTML = synonymGroups.length === 0
+                ? '<span style="color:var(--subtle-text-color);font-size:0.88em">暂无词义组</span>'
+                : synonymGroups.map((g, i) => `<label style="display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;font-size:0.88em"><input type="checkbox" data-sidx="${i}" style="margin:0"> ${g.map(w => `<span style="background:var(--button-bg);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.82em">${escapeHTML(w)}</span>`).join(' ')}</label>`).join('');
+        };
+
         exportBtn.addEventListener('click', () => {
-            if (notes.length === 0 && files.length === 0) { showInfoModal('没有数据可以导出。'); return; }
-            // 填充分组选择列表
+            if (notes.length === 0 && files.length === 0 && synonymGroups.length === 0) { showInfoModal('没有数据可以导出。'); return; }
             const allGroups = getAllGroups();
             exportGroupPicker.innerHTML = allGroups.length === 0
                 ? '<span style="color:var(--subtle-text-color);font-size:0.9em">暂无分组</span>'
                 : allGroups.map(g => `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:0.95em"><input type="checkbox" value="${g}" style="margin:0"> ${g}</label>`).join('');
-            // 重置radio到全部
             document.querySelector('input[name="export-scope"][value="all"]').checked = true;
             exportGroupPicker.style.display = 'none';
+            exportSynonymSection.style.display = 'none';
             showModal(exportOptionsModalOverlay);
         });
 
         document.querySelectorAll('input[name="export-scope"]').forEach(r => {
             r.addEventListener('change', () => {
-                exportGroupPicker.style.display = r.value === 'group' ? 'block' : 'none';
+                const isGroup = r.value === 'group';
+                exportGroupPicker.style.display = isGroup ? 'block' : 'none';
+                if (isGroup && synonymGroups.length > 0) {
+                    refreshExportSynonymPicker();
+                    exportSynonymSection.style.display = 'block';
+                } else {
+                    exportSynonymSection.style.display = 'none';
+                }
             });
         });
 
@@ -1112,13 +1138,16 @@
 
         exportOptionsConfirmBtn.addEventListener('click', async () => {
             const scope = document.querySelector('input[name="export-scope"]:checked').value;
-            let exportNotes = notes, exportFiles = files;
+            let exportNotes = notes, exportFiles = files, exportSynonyms = synonymGroups;
 
             if (scope === 'group') {
-                const selected = [...exportGroupPicker.querySelectorAll('input:checked')].map(cb => cb.value);
-                if (selected.length === 0) { showInfoModal('请至少选择一个分组。'); return; }
-                exportNotes = notes.filter(n => selected.includes(n.group?.trim()));
-                exportFiles = files.filter(f => selected.includes(f.group?.trim()));
+                const selectedGroups = [...exportGroupPicker.querySelectorAll('input:checked')].map(cb => cb.value);
+                if (selectedGroups.length === 0) { showInfoModal('请至少选择一个分组。'); return; }
+                exportNotes = notes.filter(n => selectedGroups.includes(n.group?.trim()));
+                exportFiles = files.filter(f => selectedGroups.includes(f.group?.trim()));
+                // 词义库：只导出勾选的
+                const selectedSynIdx = [...exportSynonymPicker.querySelectorAll('input:checked')].map(cb => parseInt(cb.dataset.sidx));
+                exportSynonyms = selectedSynIdx.length > 0 ? selectedSynIdx.map(i => synonymGroups[i]) : [];
             }
 
             hideModal(exportOptionsModalOverlay);
@@ -1126,12 +1155,9 @@
 
             const filesForExport = [];
             for (const f of exportFiles) {
-                if (f.file) {
-                    const b64 = await blobToBase64(f.file);
-                    filesForExport.push({ ...f, file: b64 });
-                }
+                if (f.file) { const b64 = await blobToBase64(f.file); filesForExport.push({ ...f, file: b64 }); }
             }
-            const data = { notes: exportNotes, files: filesForExport, groupOrder, theme: JSON.parse(localStorage.getItem('theme')) || presetThemes[0] };
+            const data = { notes: exportNotes, files: filesForExport, groupOrder, synonymGroups: exportSynonyms, theme: JSON.parse(localStorage.getItem('theme')) || presetThemes[0] };
             const str = JSON.stringify(data);
             const blob = new Blob([str], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
