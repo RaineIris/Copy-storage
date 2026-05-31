@@ -512,7 +512,7 @@
 </head>
 <body>
 
-    <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div id="preset-colors"></div> <div class="custom-color-wrapper"> <label for="custom-color-picker">自定义</label> <input type="color" id="custom-color-picker" value="#4069bf"> </div> </div> </aside>
+    <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> <button id="synonym-btn" title="词义库">≈</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div id="preset-colors"></div> <div class="custom-color-wrapper"> <label for="custom-color-picker">自定义</label> <input type="color" id="custom-color-picker" value="#4069bf"> </div> </div> </aside>
     <div id="sidebar-overlay"></div>
     <div class="container"> <main class="main-content"> <header class="main-header"> <span id="hamburger-menu">☰</span> <div class="multi-search-wrapper" id="multi-search-wrapper"> <input type="text" id="search-input" placeholder="搜索内容、文件名、分组、备注..."> </div> <button id="search-filter-btn" title="按分组筛选">▽</button> </header> <div id="items-container"></div> </main> </div>
     
@@ -570,8 +570,21 @@
         </div>
     </div>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', async () => {
+    <!-- 词义库弹窗 -->
+    <div class="modal-overlay" id="synonym-modal-overlay">
+        <div class="modal" id="synonym-modal" style="max-width:480px">
+            <h3>词义库</h3>
+            <p style="font-size:0.85em;color:var(--subtle-text-color);margin:-4px 0 14px">同一组里的词互为同义词，搜任一个都能找到全部相关内容。</p>
+            <div id="synonym-list" style="max-height:240px;overflow-y:auto;margin-bottom:14px;display:flex;flex-direction:column;gap:8px;"></div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="synonym-input" placeholder="输入词义组，用逗号分隔，如：小明,小明同学,明明" style="flex:1;font-size:0.9em">
+                <button type="button" id="synonym-add-btn" style="white-space:nowrap;flex-shrink:0">添加</button>
+            </div>
+            <div class="modal-buttons" style="margin-top:16px;">
+                <button type="button" id="synonym-close-btn">关闭</button>
+            </div>
+        </div>
+    </div>
         // --- 0. (修改) 动态注入多选模式的 CSS 样式 ---
         const style = document.createElement('style');
         style.textContent = `
@@ -687,6 +700,20 @@
         let notes = [], files = [], groupOrder = [], currentFilterGroup = 'all', confirmCallback = null, tempFile = null, currentObjectUrl = null;
         let currentPdfDoc = null, viewerScrollHandler = null;
         let searchFilterGroups = [], searchKeywords = [];
+        // 词义库：数组的数组，每个子数组是一组同义词
+        let synonymGroups = JSON.parse(localStorage.getItem('synonym-groups') || '[]');
+        const saveSynonyms = () => localStorage.setItem('synonym-groups', JSON.stringify(synonymGroups));
+
+        // 把搜索词扩展为包含同义词的词列表（返回数组，同一组的词是OR关系）
+        const expandWithSynonyms = (term) => {
+            const t = term.toLowerCase();
+            for (const group of synonymGroups) {
+                if (group.some(w => w.toLowerCase() === t)) {
+                    return group.map(w => w.toLowerCase());
+                }
+            }
+            return [t];
+        };
         let isSelectionMode = false; // 新增：多选模式状态
 
         // --- 5. 主题美化 ---
@@ -738,17 +765,23 @@
         const renderItems = () => {
             const all = [...notes, ...files].sort((a, b) => b.id - a.id);
             const currentTerm = searchInput.value.trim().toLowerCase();
-            const allTerms = [...searchKeywords.map(k => k.toLowerCase())];
-            if (currentTerm) allTerms.push(currentTerm);
+            const rawTerms = [...searchKeywords.map(k => k.toLowerCase())];
+            if (currentTerm) rawTerms.push(currentTerm);
+
+            // 每个rawTerm扩展成同义词数组（OR关系），多个term之间是AND关系
+            const expandedTerms = rawTerms.map(t => expandWithSynonyms(t));
+            // 用于高亮：把所有扩展词打平
+            const allTerms = [...new Set(expandedTerms.flat())];
 
             const filtered = all.filter(i => {
                 const sidebarGroupMatch = currentFilterGroup === 'all' || (currentFilterGroup === 'notes_only' && i.type === 'note') || (currentFilterGroup === 'files_only' && i.type === 'file') || i.group === currentFilterGroup;
                 if (!sidebarGroupMatch) return false;
                 const searchGroupMatch = searchFilterGroups.length === 0 || (i.group && searchFilterGroups.includes(i.group));
                 if (!searchGroupMatch) return false;
-                if (allTerms.length === 0) return true;
+                if (expandedTerms.length === 0) return true;
                 const searchableText = (i.type === 'note' ? [i.content, i.group, i.remark] : [i.filename, i.group, i.remark]).join(' ').toLowerCase();
-                return allTerms.every(term => searchableText.includes(term));
+                // 每个term的同义词组里只要有一个匹配就算这个term命中
+                return expandedTerms.every(synonyms => synonyms.some(s => searchableText.includes(s)));
             });
 
             itemsContainer.innerHTML = '';
@@ -1273,6 +1306,57 @@
         searchInput.addEventListener('input', () => { const value = searchInput.value; if (value.endsWith(' ') && value.trim() !== '') { const keyword = value.slice(0, -1).trim(); if (keyword && !searchKeywords.includes(keyword)) searchKeywords.push(keyword); searchInput.value = ''; renderKeywords(); } renderItems(); });
         searchInput.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && searchInput.value === '' && searchKeywords.length > 0) { const last = searchKeywords.pop(); searchInput.value = last + ' '; renderKeywords(); renderItems(); } });
         searchWrapper.addEventListener('click', (e) => { if (e.target.classList.contains('remove-tag')) { searchKeywords = searchKeywords.filter(k => k !== e.target.dataset.keyword); renderKeywords(); } else if (e.target === searchWrapper || e.target.classList.contains('keyword-tag')) { searchInput.focus(); } });
+
+        // --- 词义库 ---
+        const synonymModalOverlay = document.getElementById('synonym-modal-overlay');
+        const synonymList = document.getElementById('synonym-list');
+        const synonymInput = document.getElementById('synonym-input');
+        const synonymAddBtn = document.getElementById('synonym-add-btn');
+        const synonymCloseBtn = document.getElementById('synonym-close-btn');
+        const synonymBtn = document.getElementById('synonym-btn');
+
+        const renderSynonymList = () => {
+            synonymList.innerHTML = '';
+            if (synonymGroups.length === 0) {
+                synonymList.innerHTML = '<p style="color:var(--subtle-text-color);font-size:0.88em;text-align:center;margin:8px 0">还没有词义组，添加一个试试～</p>';
+                return;
+            }
+            synonymGroups.forEach((group, idx) => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--primary-bg);border-radius:8px;';
+                row.innerHTML = `
+                    <div style="flex:1;font-size:0.9em;line-height:1.6;word-break:break-all">
+                        ${group.map(w => `<span style="display:inline-block;background:var(--button-bg);color:#fff;border-radius:12px;padding:1px 8px;margin:2px;font-size:0.85em">${escapeHTML(w)}</span>`).join('')}
+                    </div>
+                    <button data-idx="${idx}" class="syn-del-btn" style="flex-shrink:0;padding:4px 10px;font-size:0.82em;background:transparent;border:1px solid var(--border-color);border-radius:6px;cursor:pointer;color:var(--subtle-text-color)">删除</button>`;
+                synonymList.appendChild(row);
+            });
+            synonymList.querySelectorAll('.syn-del-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    synonymGroups.splice(parseInt(btn.dataset.idx), 1);
+                    saveSynonyms();
+                    renderSynonymList();
+                    renderItems();
+                });
+            });
+        };
+
+        synonymBtn.addEventListener('click', () => { renderSynonymList(); showModal(synonymModalOverlay); closeSidebar(); });
+        synonymCloseBtn.addEventListener('click', () => hideModal(synonymModalOverlay));
+        synonymModalOverlay.addEventListener('click', e => { if (e.target === synonymModalOverlay) hideModal(synonymModalOverlay); });
+
+        synonymAddBtn.addEventListener('click', () => {
+            const val = synonymInput.value.trim();
+            if (!val) return;
+            const words = val.split(/[,，]/).map(w => w.trim()).filter(w => w.length > 0);
+            if (words.length < 2) { showInfoModal('请至少输入两个词，用逗号隔开～'); return; }
+            synonymGroups.push(words);
+            saveSynonyms();
+            synonymInput.value = '';
+            renderSynonymList();
+            renderItems();
+        });
+        synonymInput.addEventListener('keydown', e => { if (e.key === 'Enter') synonymAddBtn.click(); });
 
         let copyTimeout; const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => { clearTimeout(copyTimeout); copyFeedback.classList.add('show'); copyTimeout = setTimeout(() => copyFeedback.classList.remove('show'), 1500); }).catch(() => showInfoModal('复制失败！')); };
         let draggedItem = null;
