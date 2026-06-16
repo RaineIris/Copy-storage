@@ -137,7 +137,8 @@
         button:focus-visible { outline: 2px solid var(--button-bg); outline-offset: 2px; }
 
         /* 主题美化模块 */
-        .theme-customizer { flex-shrink: 0; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border-color); }
+        .theme-customizer { padding-top: 10px; margin-top: 0; }
+        .sidebar-bottom { flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px; }
         .theme-customizer h3 { font-size: 0.9em; margin: 0 0 7px 0; color: var(--subtle-text-color); }
         .color-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
         #preset-colors { display: contents; }
@@ -568,7 +569,6 @@
             border-top: 1px solid var(--border-color);
             font-size: 0.85em;
             color: var(--subtle-text-color);
-            flex-shrink: 0;
         }
         .toggle-switch {
             position: relative;
@@ -614,7 +614,7 @@
 </head>
 <body>
 
-    <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> <button id="synonym-btn" title="词义库">≈</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div class="color-row"><div id="preset-colors"></div></div><div class="custom-color-wrapper" id="custom-color-wrapper"> <label for="custom-color-picker"></label> <span class="custom-swatch" id="custom-swatch"></span> <input class="custom-hex-input" id="custom-hex-input" type="text" maxlength="7" placeholder="#自定义" spellcheck="false"> <input type="color" id="custom-color-picker" value="#4069bf"> </div> </div> <div class="divider-toggle-row"> <span>卡片横线</span> <label class="toggle-switch"><input type="checkbox" id="divider-toggle" checked><span class="toggle-track"></span></label> </div> </aside>
+    <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> <button id="synonym-btn" title="词义库">≈</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="sidebar-bottom"> <div class="theme-customizer"> <h3>主题颜色</h3> <div class="color-row"><div id="preset-colors"></div></div><div class="custom-color-wrapper" id="custom-color-wrapper"> <label for="custom-color-picker"></label> <span class="custom-swatch" id="custom-swatch"></span> <input class="custom-hex-input" id="custom-hex-input" type="text" maxlength="7" placeholder="#自定义" spellcheck="false"> <input type="color" id="custom-color-picker" value="#4069bf"> </div> </div> <div class="divider-toggle-row"> <span>卡片横线</span> <label class="toggle-switch"><input type="checkbox" id="divider-toggle" checked><span class="toggle-track"></span></label> </div> </div> </aside>
     <div id="sidebar-overlay"></div>
     <div class="container"> <main class="main-content"> <header class="main-header"> <span id="hamburger-menu">☰</span> <div class="multi-search-wrapper" id="multi-search-wrapper"> <input type="text" id="search-input" placeholder="搜索内容、文件名、分组、备注..."> </div> <button id="search-filter-btn" title="按分组筛选">▽</button> </header> <div id="items-container"></div> </main> </div>
     
