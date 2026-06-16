@@ -1450,10 +1450,11 @@
         hamburgerMenu.addEventListener('click', () => { 
             if (isSelectionMode) return; 
             sidebar.classList.add('open'); 
-            sidebarOverlay.classList.add('visible'); 
+            sidebarOverlay.classList.add('visible');
+            document.body.style.overflow = 'hidden';
         }); 
         
-        sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); }); const closeSidebar = () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); };
+        sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); document.body.style.overflow = ''; }); const closeSidebar = () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('visible'); document.body.style.overflow = ''; };
         
         // --- 添加文案按钮逻辑：自动填充分组 ---
         addNoteBtn.addEventListener('click', () => {
