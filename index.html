@@ -58,6 +58,7 @@
             flex-direction: column;
             position: fixed;
             height: 100vh;
+            height: 100dvh;
             overflow: hidden;
             left: 0;
             top: 0;
@@ -137,7 +138,9 @@
         button:focus-visible { outline: 2px solid var(--button-bg); outline-offset: 2px; }
 
         /* 主题美化模块 */
-        .sidebar-bottom { flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px; max-height: 48vh; overflow-y: auto; }
+        .sidebar-bottom { flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px; max-height: 48dvh; max-height: 48vh; display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar-bottom .theme-customizer { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+        .sidebar-bottom .divider-toggle-row { flex-shrink: 0; }
         .theme-customizer h3 { font-size: 0.9em; margin: 0 0 7px 0; color: var(--subtle-text-color); }
         .color-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
         #preset-colors { display: contents; }
