@@ -131,16 +131,22 @@
         #group-list .drag-over { border-top: 2px solid var(--button-bg); }
 
 
+        /* 去除点击时的蓝色 focus 框 */
+        * { outline: none; -webkit-tap-highlight-color: transparent; }
+        button:focus-visible { outline: 2px solid var(--button-bg); outline-offset: 2px; }
+
         /* 主题美化模块 */
-        .theme-customizer { flex-shrink: 0; padding-top: 15px; margin-top: 15px; border-top: 1px solid var(--border-color); }
-        .theme-customizer h3 { font-size: 1em; margin: 0 0 10px 0; color: var(--subtle-text-color); }
-        #preset-colors { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-        .preset-dot { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: transform 0.2s; }
+        .theme-customizer { flex-shrink: 0; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border-color); }
+        .theme-customizer h3 { font-size: 0.9em; margin: 0 0 7px 0; color: var(--subtle-text-color); }
+        .color-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+        #preset-colors { display: contents; }
+        .preset-dot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: transform 0.2s; }
         .preset-dot:hover { transform: scale(1.1); }
         .preset-dot.active { border-color: var(--button-bg); }
-        .custom-color-wrapper { display: flex; align-items: center; gap: 10px; }
-        .custom-color-wrapper label { font-size: 0.9em; }
-        #custom-color-picker { -webkit-appearance: none; -moz-appearance: none; appearance: none; width: 28px; height: 28px; background-color: transparent; border: none; cursor: pointer; padding: 0; }
+        .custom-color-wrapper { display: flex; align-items: center; }
+        .custom-color-wrapper label { display: none; }
+        #custom-color-picker { -webkit-appearance: none; -moz-appearance: none; appearance: none; width: 22px; height: 22px; background-color: transparent; border: none; cursor: pointer; padding: 0; }
+        #custom-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
         #custom-color-picker::-webkit-color-swatch { border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         #custom-color-picker::-moz-color-swatch { border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
 
@@ -532,7 +538,7 @@
 </head>
 <body>
 
-    <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> <button id="synonym-btn" title="词义库">≈</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div id="preset-colors"></div> <div class="custom-color-wrapper"> <label for="custom-color-picker">自定义</label> <input type="color" id="custom-color-picker" value="#4069bf"> </div> </div> </aside>
+    <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> <button id="synonym-btn" title="词义库">≈</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div class="color-row"><div id="preset-colors"></div><div class="custom-color-wrapper"> <label for="custom-color-picker"></label> <input type="color" id="custom-color-picker" value="#4069bf" title="自定义颜色"> </div></div> </div> </aside>
     <div id="sidebar-overlay"></div>
     <div class="container"> <main class="main-content"> <header class="main-header"> <span id="hamburger-menu">☰</span> <div class="multi-search-wrapper" id="multi-search-wrapper"> <input type="text" id="search-input" placeholder="搜索内容、文件名、分组、备注..."> </div> <button id="search-filter-btn" title="按分组筛选">▽</button> </header> <div id="items-container"></div> </main> </div>
     
