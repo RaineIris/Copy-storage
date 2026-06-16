@@ -354,14 +354,14 @@
 
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
         .modal-overlay.visible { opacity: 1; visibility: visible; }
-        .modal { background-color: var(--primary-bg); padding: 30px 40px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25); width: 90%; max-width: 500px; transform: scale(0.9); transition: transform 0.3s, background-color 0.3s; }
+        .modal { background-color: var(--primary-bg); padding: 30px 40px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25); width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; transform: scale(0.9); transition: transform 0.3s, background-color 0.3s; }
         .modal-overlay.visible .modal { transform: scale(1); }
         .modal h3 { margin-top: 0; margin-bottom: 25px; font-size: 1.8em; color: var(--theme-color-darker); text-align: center; transition: color 0.3s;}
         .modal .form-group { margin-bottom: 20px; }
         .modal label { display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-color); }
         .modal input[type="text"], .modal textarea { width: 100%; padding: 12px; border: 1px solid var(--border-color); background-color: #fff; border-radius: 8px; font-size: 1em; font-family: var(--font-family); box-sizing: border-box; transition: border-color 0.2s, box-shadow 0.2s; }
         .modal input[type="text"]:focus, .modal textarea:focus { outline: none; border-color: var(--button-bg); box-shadow: 0 0 5px hsla(var(--theme-hue), var(--theme-sat), var(--theme-light), 0.5); }
-        .modal textarea { min-height: 150px; resize: vertical; }
+        .modal textarea { min-height: 100px; resize: vertical; }
         .group-input-wrapper { position: relative; display: flex; align-items: center; }
         .group-input-wrapper input { padding-right: 35px !important; }
         .group-dropdown-toggle { position: absolute; right: 1px; top: 1px; bottom: 1px; width: 35px; border: none; background: transparent; color: var(--subtle-text-color); cursor: pointer; font-size: 0.8em; border-radius: 0 8px 8px 0; }
@@ -523,6 +523,51 @@
             padding-bottom: 8px;
             border-bottom: 1px solid var(--border-color);
         }
+        body.no-card-divider .card-header {
+            border-bottom: none;
+            padding-bottom: 4px;
+        }
+        /* 横线开关 */
+        .divider-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 10px;
+            margin-top: 10px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85em;
+            color: var(--subtle-text-color);
+            flex-shrink: 0;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 34px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input { display: none; }
+        .toggle-track {
+            position: absolute;
+            inset: 0;
+            background-color: #ccc;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .toggle-track::after {
+            content: '';
+            position: absolute;
+            left: 3px;
+            top: 3px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: white;
+            transition: transform 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .toggle-switch input:checked + .toggle-track { background-color: var(--button-bg); }
+        .toggle-switch input:checked + .toggle-track::after { transform: translateX(14px); }
         .card-serial {
             font-size: 0.82em;
             font-weight: 600;
@@ -538,7 +583,7 @@
 </head>
 <body>
 
-    <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> <button id="synonym-btn" title="词义库">≈</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div class="color-row"><div id="preset-colors"></div><div class="custom-color-wrapper"> <label for="custom-color-picker"></label> <input type="color" id="custom-color-picker" value="#4069bf" title="自定义颜色"> </div></div> </div> </aside>
+    <aside class="sidebar" id="sidebar"> <div class="sidebar-header"> <h2>分组</h2> <div class="sidebar-actions"> <button id="import-btn">导入</button> <button id="export-btn">导出</button> <button id="synonym-btn" title="词义库">≈</button> </div> </div> <input type="file" id="import-file-input" accept=".json" style="display: none;"> <ul id="group-list"></ul> <div class="theme-customizer"> <h3>主题颜色</h3> <div class="color-row"><div id="preset-colors"></div><div class="custom-color-wrapper"> <label for="custom-color-picker"></label> <input type="color" id="custom-color-picker" value="#4069bf" title="自定义颜色"> </div></div> </div> <div class="divider-toggle-row"> <span>卡片横线</span> <label class="toggle-switch"><input type="checkbox" id="divider-toggle" checked><span class="toggle-track"></span></label> </div> </aside>
     <div id="sidebar-overlay"></div>
     <div class="container"> <main class="main-content"> <header class="main-header"> <span id="hamburger-menu">☰</span> <div class="multi-search-wrapper" id="multi-search-wrapper"> <input type="text" id="search-input" placeholder="搜索内容、文件名、分组、备注..."> </div> <button id="search-filter-btn" title="按分组筛选">▽</button> </header> <div id="items-container"></div> </main> </div>
     
@@ -752,7 +797,17 @@
         // --- 5. 主题美化 ---
         const presetThemes = [ { name: '默认 · 宝蓝', hue: 215, sat: 50, light: 50, value: '#4069bf' }, { name: '草莓奶昔', hue: 345, sat: 80, light: 88, value: '#fcdbe4' }, { name: '奶油黄', hue: 55, sat: 75, light: 75, value: '#f2e6a4' }, { name: '薄荷马卡龙', hue: 150, sat: 55, light: 85, value: '#c7f2de' }, { name: '海盐冰淇淋', hue: 195, sat: 70, light: 82, value: '#bce6f7' }, { name: '香芋布丁', hue: 260, sat: 65, light: 88, value: '#e6dff9' }, { name: '蜜桃苏打', hue: 20, sat: 90, light: 80, value: '#fcd3c4' }, { name: '宝宝蓝', hue: 210, sat: 70, light: 80, value: '#b8d6f5' }, { name: '抹茶拿铁', hue: 95, sat: 35, light: 80, value: '#d5e6c7' }, { name: '焦糖饼干', hue: 30, sat: 50, light: 75, value: '#e6ccb3' }, ];
         const applyTheme = (h, s, l) => { docRoot.style.setProperty('--theme-hue', h); docRoot.style.setProperty('--theme-sat', `${s}%`); docRoot.style.setProperty('--theme-light', `${l}%`); localStorage.setItem('theme', JSON.stringify({ hue: h, sat: s, light: l })); };
+        const hexToHsl = (hex) => {
+            let r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+            const max = Math.max(r,g,b), min = Math.min(r,g,b); let h,s,l=(max+min)/2;
+            if (max===min) { h=s=0; } else {
+                const d=max-min; s=l>0.5?d/(2-max-min):d/(max+min);
+                switch(max){ case r:h=((g-b)/d+(g<b?6:0))/6;break; case g:h=((b-r)/d+2)/6;break; case b:h=((r-g)/d+4)/6;break; }
+            }
+            return [Math.round(h*360), Math.round(s*100), Math.round(l*100)];
+        };
         const loadTheme = () => { const t = JSON.parse(localStorage.getItem('theme')) || presetThemes[0]; applyTheme(t.hue, t.sat, t.light); presetColorsContainer.innerHTML = ''; presetThemes.forEach(theme => { const d = document.createElement('div'); d.className = 'preset-dot'; d.style.backgroundColor = theme.value; d.title = theme.name; d.addEventListener('click', () => applyTheme(theme.hue, theme.sat, theme.light)); presetColorsContainer.appendChild(d); }); };
+        customColorPicker.addEventListener('input', (e) => { const [h,s,l] = hexToHsl(e.target.value); applyTheme(h, s, l); });
 
         // --- 6. 辅助函数 ---
         const formatTimestamp = (isoString) => { if (!isoString) return ''; try { const d = new Date(isoString); return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-'); } catch(e) { return ''; } };
@@ -1578,6 +1633,13 @@
 
         // --- 12. 启动与迁移 ---
         loadTheme();
+
+        // 卡片横线开关
+        const dividerToggle = document.getElementById('divider-toggle');
+        const applyDivider = (on) => { docBody.classList.toggle('no-card-divider', !on); dividerToggle.checked = on; localStorage.setItem('card-divider', on ? '1' : '0'); };
+        dividerToggle.addEventListener('change', () => applyDivider(dividerToggle.checked));
+        applyDivider(localStorage.getItem('card-divider') !== '0');
+
         await initDB();
         
         const oldNotes = JSON.parse(localStorage.getItem('notes-app-data'));
