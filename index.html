@@ -508,6 +508,26 @@
             line-height: var(--line-height);
             position: relative; /* (F1) 新增: 修正样式错位问题 */
         }
+        /* --- 卡片编号头部 --- */
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .card-serial {
+            font-size: 0.82em;
+            font-weight: 600;
+            color: var(--subtle-text-color);
+            letter-spacing: 0.02em;
+        }
+        .card-date {
+            font-size: 0.78em;
+            color: var(--subtle-text-color);
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -771,6 +791,8 @@
 
         const renderItems = () => {
             const all = [...notes, ...files].sort((a, b) => b.id - a.id);
+            // 按创建顺序（id升序）计算全局序号，最早创建的是 #1
+            const serialMap = new Map([...notes, ...files].sort((a, b) => a.id - b.id).map((item, idx) => [item.id, idx + 1]));
             const currentTerm = searchInput.value.trim().toLowerCase();
             const rawTerms = [...searchKeywords.map(k => k.toLowerCase())];
             if (currentTerm) rawTerms.push(currentTerm);
@@ -795,7 +817,7 @@
             if (filtered.length === 0) {
                 itemsContainer.innerHTML = '<p style="color: var(--subtle-text-color); grid-column: 1 / -1; text-align: center; margin-top: 50px;">没有找到匹配的条目哦。</p>';
             } else {
-                filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, allTerms) : createFileCard(i, allTerms)));
+                filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, allTerms, serialMap.get(i.id)) : createFileCard(i, allTerms, serialMap.get(i.id))));
             }
             const allContentDivs = itemsContainer.querySelectorAll('.note-content'); 
             allContentDivs.forEach(div => { if (div.scrollHeight > (parseFloat(getComputedStyle(div).lineHeight) * 5)) div.classList.add('collapsible'); });
@@ -813,34 +835,42 @@
             return safeText.replace(regex, match => `<mark class="highlight">${match}</mark>`);
         };
 
-        function createNoteCard(note, terms) {
+        function createNoteCard(note, terms, serial) {
             const c = document.createElement('div');
             c.className = 'note-card'; c.dataset.id = note.id; c.dataset.type = 'note';
             const createdAt = note.createdAt ? formatTimestamp(note.createdAt) : formatTimestamp(new Date(note.id).toISOString());
             const hasHTML = containsHTML(note.content);
+            const serialLabel = serial != null ? `#${serial}` : '';
             c.innerHTML = `
+                <div class="card-header">
+                    <span class="card-serial">${serialLabel}</span>
+                    <span class="card-date">${createdAt}</span>
+                </div>
                 <div class="note-content">${highlightText(note.content, terms)}</div>
                 <div>
                     <div class="item-footer">${note.group ? `<span class="group">${highlightText(note.group || '', terms)}</span>` : ''}<span>${highlightText(note.remark || '', terms)}</span></div>
                     <div class="item-actions">
-                        <div class="item-timestamps">${createdAt ? `<div class="timestamp">${createdAt}</div>` : ''}</div>
                         ${hasHTML ? `<button class="preview-btn" title="预览HTML">预览</button>` : ''} <button class="copy-btn">复制</button> <button class="edit-btn">编辑</button> <button class="delete-btn">删除</button>
                     </div>
                 </div>`;
             return c;
         }
 
-        function createFileCard(file, terms) {
+        function createFileCard(file, terms, serial) {
             const c = document.createElement('div');
             c.className = 'file-card'; c.dataset.id = file.id; c.dataset.type = 'file';
             const size = file.file ? `${(file.file.size / 1024).toFixed(2)} KB` : 'N/A';
             const createdAt = file.createdAt ? formatTimestamp(file.createdAt) : '';
+            const serialLabel = serial != null ? `#${serial}` : '';
             c.innerHTML = `
+                <div class="card-header">
+                    <span class="card-serial">${serialLabel}</span>
+                    <span class="card-date">${createdAt}</span>
+                </div>
                 <div class="file-info"><span class="icon">📄</span><div class="file-details"><div class="filename">${highlightText(file.filename, terms)}</div><div class="file-size">${size}</div></div></div>
                 <div>
                     <div class="item-footer">${file.group ? `<span class="group">${highlightText(file.group || '', terms)}</span>` : ''}<span>${highlightText(file.remark || '', terms)}</span></div>
                     <div class="item-actions">
-                        <div class="item-timestamps">${createdAt ? `<div class="timestamp">${createdAt}</div>` : ''}</div>
                         <button class="download-btn">下载</button> <button class="edit-btn">编辑</button> <button class="delete-btn">删除</button>
                     </div>
                 </div>`;
