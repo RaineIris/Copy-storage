@@ -635,6 +635,10 @@
         .settings-hint { font-size:.8em; color:var(--subtle-text-color); margin:6px 0 18px; }
         .storage-settings .settings-done { background:var(--button-bg); color:white; border-color:var(--button-bg); width:100%; }
         #search-filter-modal { max-height: min(75vh, 650px); overflow-y:auto; box-sizing:border-box; }
+        .storage-sort-details { margin:10px 0; border-top:1px solid var(--border-color); padding-top:8px; }
+        .storage-sort-details summary { cursor:pointer; color:var(--theme-color-darker); font-size:.9em; padding:6px 0; }
+        .storage-sort-details .storage-sort-section { margin-top:8px; }
+        #search-filter-modal .search-filter-actions { position:sticky; bottom:0; background:var(--card-bg); padding-top:8px; }
         .storage-sort-section { padding-bottom:10px; margin-bottom:10px; border-bottom:1px solid var(--border-color); }
         .storage-sort-option { display:flex; align-items:center; gap:10px; width:100%; padding:9px 10px; margin:3px 0; border:0; border-radius:8px; background:transparent; color:var(--text-color); font:inherit; font-size:.9em; text-align:left; cursor:pointer; }
         .storage-sort-option.selected { background:var(--primary-bg); }
@@ -1838,13 +1842,17 @@
         });
         const sortPanel = document.createElement('div');
         sortPanel.className = 'storage-sort-panel';
-        searchFilterModal.prepend(sortPanel);
+        const sortDetails = document.createElement('details');
+        sortDetails.className = 'storage-sort-details';
+        sortDetails.innerHTML = '<summary>排序设置</summary>';
+        sortDetails.appendChild(sortPanel);
+        searchFilterModal.insertBefore(sortDetails, searchFilterModal.querySelector('.search-filter-actions'));
         let pendingTime = timeOrder, pendingStatus = statusOrder;
         const drawSortOptions = () => {
             const section = (title,kind,options,selected) => '<div class="storage-sort-section"><h3>'+title+'</h3>'+options.map(([key,label]) => '<button type="button" class="storage-sort-option'+(key===selected?' selected':'')+'" data-kind="'+kind+'" data-value="'+key+'" aria-pressed="'+(key===selected)+'">'+svgIcon(key)+'<span>'+label+'</span>'+(key===selected?svgIcon('check'):'')+'</button>').join('')+'</div>';
             sortPanel.innerHTML = section('排序方式','time',[['new','最新创建优先'],['old','最早创建优先']],pendingTime)+(usageTrackingEnabled?section('使用状态优先级','status',[['unused','未使用优先'],['used','已使用优先'],['all','不区分使用状态']],pendingStatus):'');
         };
-        function renderSortOptions() { pendingTime = timeOrder; pendingStatus = statusOrder; drawSortOptions(); }
+        function renderSortOptions() { pendingTime = timeOrder; pendingStatus = statusOrder; sortDetails.open = false; drawSortOptions(); }
         function applySortOptions() {
             timeOrder = pendingTime;
             if (usageTrackingEnabled) statusOrder = pendingStatus;
@@ -1852,6 +1860,7 @@
             localStorage.setItem('copy-storage-status-order',statusOrder);
         }
         sortPanel.addEventListener('click', e => {
+            e.stopPropagation();
             const button = e.target.closest('.storage-sort-option');
             if (!button) return;
             if (button.dataset.kind === 'time') pendingTime = button.dataset.value;
