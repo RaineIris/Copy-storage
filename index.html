@@ -1084,8 +1084,19 @@
                     if (!note) return;
                     btn.disabled = true;
                     try {
+                        const viewport = itemsContainer.getBoundingClientRect();
+                        const anchor = [...itemsContainer.children].find(el => el !== card && el.dataset.id && el.getBoundingClientRect().bottom > viewport.top && el.getBoundingClientRect().top < viewport.bottom);
+                        const anchorId = anchor?.dataset.id;
+                        const anchorOffset = anchor?.getBoundingClientRect().top;
+                        const previousScroll = itemsContainer.scrollTop;
                         await dbActions.update({ ...note, used: note.used !== true });
                         await refreshUI();
+                        const restoredAnchor = anchorId && [...itemsContainer.children].find(el => el.dataset.id === anchorId);
+                        if (restoredAnchor) {
+                            itemsContainer.scrollTop += restoredAnchor.getBoundingClientRect().top - anchorOffset;
+                        } else {
+                            itemsContainer.scrollTop = previousScroll;
+                        }
                     } catch (err) {
                         console.error(err);
                         btn.disabled = false;
