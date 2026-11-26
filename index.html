@@ -623,6 +623,23 @@
             color: var(--subtle-text-color);
             white-space: nowrap;
         }
+        .storage-settings-button { display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; border:1px solid var(--border-color); border-radius:8px; background:var(--card-bg); color:var(--theme-color-darker); font:inherit; cursor:pointer; }
+        .storage-settings-button span { flex:1; text-align:left; }
+        .storage-settings { max-height:85vh; overflow-y:auto; box-sizing:border-box; }
+        .settings-section-label { font-size:.8em; color:var(--subtle-text-color); margin:12px 0; }
+        .settings-section-divider { border-top:1px solid var(--border-color); padding-top:14px; }
+        .storage-settings .theme-customizer { border:0; padding:0; margin:0; }
+        .storage-settings .theme-customizer h3 { text-align:left; font-size:1em; }
+        .storage-settings #preset-colors { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; justify-items:center; }
+        .storage-settings .divider-toggle-row { font-size:1em; color:var(--text-color); border:0; }
+        .settings-hint { font-size:.8em; color:var(--subtle-text-color); margin:6px 0 18px; }
+        .storage-settings .settings-done { background:var(--button-bg); color:white; border-color:var(--button-bg); width:100%; }
+        #search-filter-modal { max-height: min(75vh, 650px); overflow-y:auto; box-sizing:border-box; }
+        .storage-sort-section { padding-bottom:10px; margin-bottom:10px; border-bottom:1px solid var(--border-color); }
+        .storage-sort-option { display:flex; align-items:center; gap:10px; width:100%; padding:9px 10px; margin:3px 0; border:0; border-radius:8px; background:transparent; color:var(--text-color); font:inherit; font-size:.9em; text-align:left; cursor:pointer; }
+        .storage-sort-option.selected { background:var(--primary-bg); }
+        .storage-sort-option svg { color:var(--theme-color-darker); flex-shrink:0; }
+        .storage-sort-option span { flex:1; }
     </style>
 </head>
 <body>
@@ -907,11 +924,14 @@
         };
 
         let usageTrackingEnabled = localStorage.getItem('copy-storage-usage-tracking') === '1';
+        let timeOrder = localStorage.getItem('copy-storage-time-order') === 'old' ? 'old' : 'new';
+        let statusOrder = localStorage.getItem('copy-storage-status-order') || 'unused';
+        if (!['unused','used','all'].includes(statusOrder)) statusOrder = 'unused';
         const usagePriority = item => item.type === 'note' && item.used === true ? 1 : 0;
+        const compareItems = (a,b) => (usageTrackingEnabled && statusOrder !== 'all' ? (usagePriority(a)-usagePriority(b)) * (statusOrder === 'used' ? -1 : 1) : 0) || (timeOrder === 'old' ? a.id-b.id : b.id-a.id);
 
         const renderItems = () => {
-            const all = [...notes, ...files].sort((a, b) => b.id - a.id);
-            if (usageTrackingEnabled) all.sort((a, b) => usagePriority(a) - usagePriority(b) || b.id - a.id);
+            const all = [...notes, ...files].sort(compareItems);
             // 按创建顺序（id升序）计算全局序号，最早创建的是 #1
             const serialMap = new Map([...notes, ...files].sort((a, b) => a.id - b.id).map((item, idx) => [item.id, idx + 1]));
             const currentTerm = searchInput.value.trim().toLowerCase();
@@ -1115,7 +1135,7 @@
                         const before = [...itemsContainer.children].find(el => {
                             if (el === card) return false;
                             const other = byId.get(el.dataset.id);
-                            return other && (usagePriority(note) - usagePriority(other) || other.id - note.id) < 0;
+                            return other && compareItems(note, other) < 0;
                         });
                         itemsContainer.insertBefore(card, before || null);
                         if (note.used === true) {
@@ -1414,10 +1434,10 @@
         htmlViewerCloseBtn.addEventListener('click', hideHtmlViewer); htmlViewerOverlay.addEventListener('click', e => { if (e.target === htmlViewerOverlay) hideHtmlViewer(); });
 
         const updateSearchFilterBtnState = () => { if (searchFilterGroups.length > 0) { searchFilterBtn.classList.add('active'); searchFilterBtn.textContent = `▽ (${searchFilterGroups.length})`; } else { searchFilterBtn.classList.remove('active'); searchFilterBtn.textContent = '▽'; } };
-        const showSearchFilterModal = () => { const allGroups = getAllGroups(); searchFilterList.innerHTML = allGroups.length === 0 ? '<p style="color: var(--subtle-text-color); padding: 10px; text-align: center;">暂无分组</p>' : allGroups.map(g => `<label><input type="checkbox" value="${escapeHTML(g)}" ${searchFilterGroups.includes(g) ? 'checked' : ''}> ${escapeHTML(g)}</label>`).join(''); searchFilterModal.classList.add('visible'); };
+        const showSearchFilterModal = () => { renderSortOptions(); const allGroups = getAllGroups(); searchFilterList.innerHTML = allGroups.length === 0 ? '<p style="color: var(--subtle-text-color); padding: 10px; text-align: center;">暂无分组</p>' : allGroups.map(g => `<label><input type="checkbox" value="${escapeHTML(g)}" ${searchFilterGroups.includes(g) ? 'checked' : ''}> ${escapeHTML(g)}</label>`).join(''); searchFilterModal.classList.add('visible'); };
         const hideSearchFilterModal = () => searchFilterModal.classList.remove('visible');
         searchFilterBtn.addEventListener('click', (e) => { e.stopPropagation(); searchFilterModal.classList.contains('visible') ? hideSearchFilterModal() : showSearchFilterModal(); });
-        searchFilterApply.addEventListener('click', () => { searchFilterGroups = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); hideSearchFilterModal(); });
+        searchFilterApply.addEventListener('click', () => { applySortOptions(); searchFilterGroups = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); hideSearchFilterModal(); });
         searchFilterClear.addEventListener('click', () => { searchFilterGroups = []; saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); hideSearchFilterModal(); });
         document.addEventListener('click', (e) => { if (!searchFilterModal.contains(e.target) && e.target !== searchFilterBtn) hideSearchFilterModal(); });
 
@@ -1777,32 +1797,66 @@
         updateSearchFilterBtnState();
         await refreshUI();
 
-        // Hidden usage-tracking preference.
-        const usageTrigger = document.querySelector('.theme-customizer h3');
-        let usageTapCount = 0;
-        let usageTapTime = 0;
-        const usageOverlay = document.createElement('div');
-        usageOverlay.className = 'modal-overlay';
-        usageOverlay.innerHTML = '<div class="modal"><h3>进阶设置</h3><div class="divider-toggle-row"><span>文案使用记录</span><label class="toggle-switch"><input type="checkbox" aria-label="文案使用记录"><span class="toggle-track"></span></label></div><p style="font-size:0.85em;color:var(--subtle-text-color)">开启后，已使用的文案将排在后面。</p><div class="modal-buttons"><button type="button" style="background:var(--button-bg);color:white;border-color:var(--button-bg)">完成</button></div></div>';
-        document.body.appendChild(usageOverlay);
-        const usageCheckbox = usageOverlay.querySelector('input');
-        const closeUsageSettings = () => hideModal(usageOverlay);
-        usageOverlay.querySelector('button').addEventListener('click', closeUsageSettings);
-        usageOverlay.addEventListener('click', e => { if (e.target === usageOverlay) closeUsageSettings(); });
+        // Settings: reuse the existing controls and their event listeners.
+        const svgIcon = name => {
+            const paths = {
+                settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/><circle cx="12" cy="12" r="7"/>',
+                new: '<path d="M3 4v16m-3-3 3 3 3-3M9 4h12M9 9h9M9 14h6"/>',
+                old: '<path d="M3 20V4m-3 3 3-3 3 3M9 4h6M9 9h9M9 14h12"/>',
+                unused: '<circle cx="12" cy="12" r="9"/>',
+                used: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+                all: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+                check: '<path d="m5 12 4 4L19 6"/>',
+                chevron: '<path d="m9 18 6-6-6-6"/>'
+            };
+            return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+paths[name]+'</svg>';
+        };
+        const settingsOverlay = document.createElement('div');
+        settingsOverlay.className = 'modal-overlay';
+        settingsOverlay.innerHTML = '<div class="modal storage-settings"><h3>设置</h3><div class="settings-section-label">外观设置</div><div class="settings-appearance"></div><div class="settings-section-label settings-section-divider">文案管理</div><div class="divider-toggle-row settings-usage"><span>文案使用记录</span><label class="toggle-switch"><input type="checkbox" aria-label="文案使用记录"><span class="toggle-track"></span></label></div><p class="settings-hint">开启后可标记文案的使用状态，并在筛选中调整优先级。</p><div class="modal-buttons"><button type="button" class="settings-done">完成</button></div></div>';
+        document.body.appendChild(settingsOverlay);
+        const appearance = settingsOverlay.querySelector('.settings-appearance');
+        appearance.append(document.querySelector('.theme-customizer'), dividerToggle.closest('.divider-toggle-row'));
+        const settingsButton = document.createElement('button');
+        settingsButton.type = 'button';
+        settingsButton.className = 'storage-settings-button';
+        settingsButton.innerHTML = svgIcon('settings')+'<span>设置</span>'+svgIcon('chevron');
+        document.querySelector('.sidebar-bottom').appendChild(settingsButton);
+        const usageCheckbox = settingsOverlay.querySelector('.settings-usage input');
+        settingsButton.addEventListener('click', () => {
+            usageCheckbox.checked = usageTrackingEnabled;
+            initCustomSwatch();
+            closeSidebar();
+            showModal(settingsOverlay);
+        });
+        settingsOverlay.querySelector('.settings-done').addEventListener('click', () => hideModal(settingsOverlay));
+        settingsOverlay.addEventListener('click', e => { if(e.target === settingsOverlay) hideModal(settingsOverlay); });
         usageCheckbox.addEventListener('change', () => {
             usageTrackingEnabled = usageCheckbox.checked;
             localStorage.setItem('copy-storage-usage-tracking', usageTrackingEnabled ? '1' : '0');
             renderItems();
         });
-        usageTrigger.addEventListener('click', () => {
-            const now = Date.now();
-            usageTapCount = now - usageTapTime > 650 ? 1 : usageTapCount + 1;
-            usageTapTime = now;
-            if (usageTapCount === 5) {
-                usageTapCount = 0;
-                usageCheckbox.checked = usageTrackingEnabled;
-                showModal(usageOverlay);
-            }
+        const sortPanel = document.createElement('div');
+        sortPanel.className = 'storage-sort-panel';
+        searchFilterModal.prepend(sortPanel);
+        let pendingTime = timeOrder, pendingStatus = statusOrder;
+        const drawSortOptions = () => {
+            const section = (title,kind,options,selected) => '<div class="storage-sort-section"><h3>'+title+'</h3>'+options.map(([key,label]) => '<button type="button" class="storage-sort-option'+(key===selected?' selected':'')+'" data-kind="'+kind+'" data-value="'+key+'" aria-pressed="'+(key===selected)+'">'+svgIcon(key)+'<span>'+label+'</span>'+(key===selected?svgIcon('check'):'')+'</button>').join('')+'</div>';
+            sortPanel.innerHTML = section('排序方式','time',[['new','最新创建优先'],['old','最早创建优先']],pendingTime)+(usageTrackingEnabled?section('使用状态优先级','status',[['unused','未使用优先'],['used','已使用优先'],['all','不区分使用状态']],pendingStatus):'');
+        };
+        function renderSortOptions() { pendingTime = timeOrder; pendingStatus = statusOrder; drawSortOptions(); }
+        function applySortOptions() {
+            timeOrder = pendingTime;
+            if (usageTrackingEnabled) statusOrder = pendingStatus;
+            localStorage.setItem('copy-storage-time-order',timeOrder);
+            localStorage.setItem('copy-storage-status-order',statusOrder);
+        }
+        sortPanel.addEventListener('click', e => {
+            const button = e.target.closest('.storage-sort-option');
+            if (!button) return;
+            if (button.dataset.kind === 'time') pendingTime = button.dataset.value;
+            else pendingStatus = button.dataset.value;
+            drawSortOptions();
         });
     });
 </script>
