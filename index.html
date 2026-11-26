@@ -895,8 +895,12 @@
             }
         };
 
+        let usageTrackingEnabled = localStorage.getItem('copy-storage-usage-tracking') === '1';
+        const usagePriority = item => item.type === 'note' && item.used === true ? 1 : 0;
+
         const renderItems = () => {
             const all = [...notes, ...files].sort((a, b) => b.id - a.id);
+            if (usageTrackingEnabled) all.sort((a, b) => usagePriority(a) - usagePriority(b) || b.id - a.id);
             // 按创建顺序（id升序）计算全局序号，最早创建的是 #1
             const serialMap = new Map([...notes, ...files].sort((a, b) => a.id - b.id).map((item, idx) => [item.id, idx + 1]));
             const currentTerm = searchInput.value.trim().toLowerCase();
@@ -959,6 +963,15 @@
                         ${hasHTML ? `<button class="preview-btn" title="预览HTML">预览</button>` : ''} <button class="copy-btn">复制</button> <button class="edit-btn">编辑</button> <button class="delete-btn">删除</button>
                     </div>
                 </div>`;
+            if (usageTrackingEnabled) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'usage-toggle-btn';
+                button.textContent = note.used === true ? '已使用 ✓' : '标记已使用';
+                button.title = note.used === true ? '取消已使用标记' : '标记为已使用';
+                button.setAttribute('aria-pressed', String(note.used === true));
+                c.querySelector('.item-actions').prepend(button);
+            }
             return c;
         }
 
@@ -1066,6 +1079,20 @@
             if (targetIsActionButton) {
                 const btn = e.target.closest('button');
                 if (!btn) return;
+                if (usageTrackingEnabled && type === 'note' && btn.classList.contains('usage-toggle-btn')) {
+                    const note = notes.find(n => n.id === id);
+                    if (!note) return;
+                    btn.disabled = true;
+                    try {
+                        await dbActions.update({ ...note, used: note.used !== true });
+                        await refreshUI();
+                    } catch (err) {
+                        console.error(err);
+                        btn.disabled = false;
+                        showInfoModal('使用记录保存失败');
+                    }
+                    return;
+                }
                 if (btn.classList.contains('delete-btn')) {
                     showConfirmModal(type === 'note' ? '确定要删除这条文案吗？' : '确定要删除这个文件吗？', async (c) => {
                         if (c) { await dbActions.delete(id); await refreshUI(); }
@@ -1704,6 +1731,34 @@
         searchFilterGroups = JSON.parse(localStorage.getItem('search-filter-groups')) || [];
         updateSearchFilterBtnState();
         await refreshUI();
+
+        // Hidden usage-tracking preference.
+        const usageTrigger = document.querySelector('.theme-customizer h3');
+        let usageTapCount = 0;
+        let usageTapTime = 0;
+        const usageOverlay = document.createElement('div');
+        usageOverlay.className = 'modal-overlay';
+        usageOverlay.innerHTML = '<div class="modal"><h3>进阶设置</h3><div class="divider-toggle-row"><span>文案使用记录</span><label class="toggle-switch"><input type="checkbox" aria-label="文案使用记录"><span class="toggle-track"></span></label></div><p style="font-size:0.85em;color:var(--subtle-text-color)">开启后，已使用的文案将排在后面。</p><div class="modal-buttons"><button type="button" style="background:var(--button-bg);color:white;border-color:var(--button-bg)">完成</button></div></div>';
+        document.body.appendChild(usageOverlay);
+        const usageCheckbox = usageOverlay.querySelector('input');
+        const closeUsageSettings = () => hideModal(usageOverlay);
+        usageOverlay.querySelector('button').addEventListener('click', closeUsageSettings);
+        usageOverlay.addEventListener('click', e => { if (e.target === usageOverlay) closeUsageSettings(); });
+        usageCheckbox.addEventListener('change', () => {
+            usageTrackingEnabled = usageCheckbox.checked;
+            localStorage.setItem('copy-storage-usage-tracking', usageTrackingEnabled ? '1' : '0');
+            renderItems();
+        });
+        usageTrigger.addEventListener('click', () => {
+            const now = Date.now();
+            usageTapCount = now - usageTapTime > 650 ? 1 : usageTapCount + 1;
+            usageTapTime = now;
+            if (usageTapCount === 5) {
+                usageTapCount = 0;
+                usageCheckbox.checked = usageTrackingEnabled;
+                showModal(usageOverlay);
+            }
+        });
     });
 </script>
 
