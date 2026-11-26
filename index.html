@@ -1084,19 +1084,35 @@
                     if (!note) return;
                     btn.disabled = true;
                     try {
-                        const viewport = itemsContainer.getBoundingClientRect();
-                        const anchor = [...itemsContainer.children].find(el => el !== card && el.dataset.id && el.getBoundingClientRect().bottom > viewport.top && el.getBoundingClientRect().top < viewport.bottom);
-                        const anchorId = anchor?.dataset.id;
+                        const updatedNote = { ...note, used: note.used !== true };
+                        await dbActions.update(updatedNote);
+                        Object.assign(note, updatedNote);
+
+                        // Move only the changed card; preserve all other DOM nodes and expanded text.
+                        const anchor = card.nextElementSibling || card.previousElementSibling;
                         const anchorOffset = anchor?.getBoundingClientRect().top;
                         const previousScroll = itemsContainer.scrollTop;
-                        await dbActions.update({ ...note, used: note.used !== true });
-                        await refreshUI();
-                        const restoredAnchor = anchorId && [...itemsContainer.children].find(el => el.dataset.id === anchorId);
-                        if (restoredAnchor) {
-                            itemsContainer.scrollTop += restoredAnchor.getBoundingClientRect().top - anchorOffset;
-                        } else {
-                            itemsContainer.scrollTop = previousScroll;
+                        const previousOverflowAnchor = itemsContainer.style.overflowAnchor;
+                        itemsContainer.style.overflowAnchor = 'none';
+
+                        btn.textContent = note.used === true ? '已使用 ✓' : '标记已使用';
+                        btn.title = note.used === true ? '取消已使用标记' : '标记为已使用';
+                        btn.setAttribute('aria-pressed', String(note.used === true));
+                        const byId = new Map([...notes, ...files].map(item => [String(item.id), item]));
+                        const before = [...itemsContainer.children].find(el => {
+                            if (el === card) return false;
+                            const other = byId.get(el.dataset.id);
+                            return other && (usagePriority(note) - usagePriority(other) || other.id - note.id) < 0;
+                        });
+                        itemsContainer.insertBefore(card, before || null);
+                        itemsContainer.scrollTop = previousScroll;
+                        if (anchor && anchorOffset !== undefined) {
+                            itemsContainer.scrollTop += anchor.getBoundingClientRect().top - anchorOffset;
                         }
+                        btn.disabled = false;
+                        requestAnimationFrame(() => requestAnimationFrame(() => {
+                            itemsContainer.style.overflowAnchor = previousOverflowAnchor;
+                        }));
                     } catch (err) {
                         console.error(err);
                         btn.disabled = false;
