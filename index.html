@@ -657,7 +657,7 @@
         <div id="search-filter-list"></div>
         <div class="search-filter-actions">
             <button id="search-filter-clear">清除</button>
-            <button id="search-filter-apply">应用</button>
+            
         </div>
     </div>
 
@@ -835,7 +835,7 @@
         const presetColorsContainer = document.getElementById('preset-colors'), customColorPicker = document.getElementById('custom-color-picker');
         const viewerModalOverlay = document.getElementById('viewer-modal-overlay'), viewerHeader = document.getElementById('viewer-header'), viewerFilename = document.getElementById('viewer-filename'), closeViewerBtn = document.getElementById('close-viewer-btn'), viewerContent = document.getElementById('viewer-content'), viewerPageIndicator = document.getElementById('viewer-page-indicator');
         const searchInput = document.getElementById('search-input'), searchWrapper = document.getElementById('multi-search-wrapper');
-        const searchFilterBtn = document.getElementById('search-filter-btn'), searchFilterModal = document.getElementById('search-filter-modal'), searchFilterList = document.getElementById('search-filter-list'), searchFilterClear = document.getElementById('search-filter-clear'), searchFilterApply = document.getElementById('search-filter-apply');
+        const searchFilterBtn = document.getElementById('search-filter-btn'), searchFilterModal = document.getElementById('search-filter-modal'), searchFilterList = document.getElementById('search-filter-list'), searchFilterClear = document.getElementById('search-filter-clear');
         const htmlViewerOverlay = document.getElementById('html-viewer-overlay'), htmlViewerContent = document.getElementById('html-viewer-content'), htmlViewerCloseBtn = document.getElementById('html-viewer-close-btn');
         const sidebarActions = document.querySelector('.sidebar-actions');
 
@@ -1441,8 +1441,8 @@
         const showSearchFilterModal = () => { renderSortOptions(); const allGroups = getAllGroups(); searchFilterList.innerHTML = allGroups.length === 0 ? '<p style="color: var(--subtle-text-color); padding: 10px; text-align: center;">暂无分组</p>' : allGroups.map(g => `<label><input type="checkbox" value="${escapeHTML(g)}" ${searchFilterGroups.includes(g) ? 'checked' : ''}> ${escapeHTML(g)}</label>`).join(''); searchFilterModal.classList.add('visible'); };
         const hideSearchFilterModal = () => searchFilterModal.classList.remove('visible');
         searchFilterBtn.addEventListener('click', (e) => { e.stopPropagation(); searchFilterModal.classList.contains('visible') ? hideSearchFilterModal() : showSearchFilterModal(); });
-        searchFilterApply.addEventListener('click', () => { applySortOptions(); searchFilterGroups = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); hideSearchFilterModal(); });
-        searchFilterClear.addEventListener('click', () => { searchFilterGroups = []; saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); hideSearchFilterModal(); });
+        searchFilterList.addEventListener('change', () => { searchFilterGroups = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); itemsContainer.scrollTop = 0; });
+        searchFilterClear.addEventListener('click', () => { searchFilterGroups = []; searchFilterList.querySelectorAll('input:checked').forEach(input => input.checked = false); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); itemsContainer.scrollTop = 0; });
         document.addEventListener('click', (e) => { if (!searchFilterModal.contains(e.target) && e.target !== searchFilterBtn) hideSearchFilterModal(); });
 
         // 🌟 核心修复：App/WebView 环境下 PDF 预览 (Data传输 + XHR Fallback)
@@ -1865,7 +1865,10 @@
             if (!button) return;
             if (button.dataset.kind === 'time') pendingTime = button.dataset.value;
             else pendingStatus = button.dataset.value;
+            applySortOptions();
             drawSortOptions();
+            renderItems();
+            itemsContainer.scrollTop = 0;
         });
     });
 </script>
