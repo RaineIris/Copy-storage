@@ -644,6 +644,11 @@
         .storage-sort-option.selected { background:var(--primary-bg); }
         .storage-sort-option svg { color:var(--theme-color-darker); flex-shrink:0; }
         .storage-sort-option span { flex:1; }
+        .trash-list { max-height:48vh; overflow-y:auto; color:var(--subtle-text-color); }
+        .trash-row { padding:12px 0; border-bottom:1px solid var(--border-color); }
+        .trash-preview { color:var(--text-color); white-space:pre-wrap; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+        .trash-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+        .trash-actions button { border:1px solid var(--border-color); background:var(--card-bg); color:var(--theme-color-darker); border-radius:6px; padding:5px 10px; cursor:pointer; }
     </style>
 </head>
 <body>
@@ -938,7 +943,7 @@
         const renderItems = (reuseCards = false) => {
             const all = [...notes, ...files].sort(compareItems);
             // 按创建顺序（id升序）计算全局序号，最早创建的是 #1
-            const serialMap = new Map([...notes, ...files].sort((a, b) => a.id - b.id).map((item, idx) => [item.id, idx + 1]));
+            const serialMap = new Map([...notes, ...files, ...trashItems].sort((a, b) => a.id - b.id).map((item, idx) => [item.id, idx + 1]));
             const currentTerm = searchInput.value.trim().toLowerCase();
             const rawTerms = [...searchKeywords.map(k => k.toLowerCase())];
             if (currentTerm) rawTerms.push(currentTerm);
@@ -1049,10 +1054,14 @@
         }
 
         // --- 8. 事件处理 ---
+        let trashItems = [];
+        const trashRetention = 30 * 24 * 60 * 60 * 1000;
         const refreshUI = async () => {
             const allItems = await dbActions.getAll();
-            files = allItems.filter(i => i.type === 'file');
-            notes = allItems.filter(i => i.type === 'note'); 
+            trashItems = allItems.filter(i => i.deletedAt && Date.now() - i.deletedAt < trashRetention);
+            for (const item of allItems.filter(i => i.deletedAt && Date.now() - i.deletedAt >= trashRetention)) await dbActions.delete(item.id);
+            files = allItems.filter(i => i.type === 'file' && !i.deletedAt);
+            notes = allItems.filter(i => i.type === 'note' && !i.deletedAt); 
             renderGroups();
             renderItems();
         };
@@ -1179,8 +1188,8 @@
                     return;
                 }
                 if (btn.classList.contains('delete-btn')) {
-                    showConfirmModal(type === 'note' ? '确定要删除这条文案吗？' : '确定要删除这个文件吗？', async (c) => {
-                        if (c) { await dbActions.delete(id); await refreshUI(); }
+                    showConfirmModal(type === 'note' ? '确定将这条文案移入回收站吗？' : '确定将这个文件移入回收站吗？', async (c) => {
+                        if (c) { const item = (type === 'note' ? notes : files).find(i => i.id === id); if (item) { await dbActions.update({ ...item, deletedAt: Date.now() }); await refreshUI(); } }
                     }, { danger: true, yesText: '删除' });
                 } else if (btn.classList.contains('edit-btn')) {
                     if (type === 'note') {
@@ -1856,6 +1865,51 @@
             localStorage.setItem('copy-storage-usage-tracking', usageTrackingEnabled ? '1' : '0');
             renderItems();
         });
+        const trashButton = document.createElement('button');
+        trashButton.type = 'button';
+        trashButton.className = 'storage-settings-button';
+        trashButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg><span>回收站</span>'+svgIcon('chevron');
+        settingsOverlay.querySelector('.modal-buttons').before(trashButton);
+        const trashOverlay = document.createElement('div');
+        trashOverlay.className = 'modal-overlay';
+        trashOverlay.innerHTML = '<div class="modal storage-settings"><h3>回收站</h3><p class="settings-hint">删除的条目保留30天，到期后自动清理。</p><div class="trash-list"></div><div class="modal-buttons"><button type="button" class="trash-back">返回设置</button></div></div>';
+        document.body.appendChild(trashOverlay);
+        const trashList = trashOverlay.querySelector('.trash-list');
+        const drawTrash = () => {
+            trashList.replaceChildren();
+            if (!trashItems.length) { trashList.textContent = '回收站为空'; return; }
+            for (const item of [...trashItems].sort((a,b)=>b.deletedAt-a.deletedAt)) {
+                const row = document.createElement('div');
+                row.className = 'trash-row';
+                const preview = document.createElement('div');
+                preview.className = 'trash-preview';
+                preview.textContent = item.type === 'note' ? item.content : item.filename;
+                const meta = document.createElement('small');
+                meta.textContent = (item.group ? item.group+' · ' : '')+'剩余 '+Math.max(1,Math.ceil((trashRetention-Date.now()+item.deletedAt)/86400000))+' 天';
+                const actions = document.createElement('div');
+                actions.className = 'trash-actions';
+                for (const [label,restore] of [['恢复',true],['彻底删除',false]]) {
+                    const button = document.createElement('button');
+                    button.type = 'button'; button.textContent = label;
+                    const run = async () => {
+                        try {
+                            if (restore) { const restored = {...item}; delete restored.deletedAt; await dbActions.update(restored); }
+                            else await dbActions.delete(item.id);
+                            await refreshUI(); drawTrash();
+                        } catch(err) { console.error(err); showInfoModal('操作失败，请重试'); }
+                    };
+                    button.addEventListener('click', () => {
+                        if (restore) run();
+                        else showConfirmModal('确定彻底删除此条目？', yes => { if (yes) run(); }, {danger:true,yesText:'彻底删除'});
+                    });
+                    actions.appendChild(button);
+                }
+                row.append(preview,meta,actions); trashList.appendChild(row);
+            }
+        };
+        trashButton.addEventListener('click', async () => { await refreshUI(); drawTrash(); hideModal(settingsOverlay); showModal(trashOverlay); });
+        trashOverlay.querySelector('.trash-back').addEventListener('click', () => { hideModal(trashOverlay); showModal(settingsOverlay); });
+        trashOverlay.addEventListener('click', e => { if(e.target===trashOverlay) hideModal(trashOverlay); });
         const sortPanel = document.createElement('div');
         sortPanel.className = 'storage-sort-panel';
         const sortDetails = document.createElement('details');
