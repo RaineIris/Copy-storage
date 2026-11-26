@@ -934,7 +934,8 @@
         const usagePriority = item => item.type === 'note' && item.used === true ? 1 : 0;
         const compareItems = (a,b) => (usageTrackingEnabled && statusOrder !== 'all' ? (usagePriority(a)-usagePriority(b)) * (statusOrder === 'used' ? -1 : 1) : 0) || (timeOrder === 'old' ? a.id-b.id : b.id-a.id);
 
-        const renderItems = () => {
+        let filterCardCache = new Map();
+        const renderItems = (reuseCards = false) => {
             const all = [...notes, ...files].sort(compareItems);
             // 按创建顺序（id升序）计算全局序号，最早创建的是 #1
             const serialMap = new Map([...notes, ...files].sort((a, b) => a.id - b.id).map((item, idx) => [item.id, idx + 1]));
@@ -958,14 +959,29 @@
                 return expandedTerms.every(synonyms => synonyms.some(s => searchableText.includes(s)));
             });
 
-            itemsContainer.innerHTML = '';
+            // Reuse cards only for group-filter changes; other renders invalidate the cache.
+            if (!reuseCards || isSelectionMode) filterCardCache = new Map();
+            const fragment = document.createDocumentFragment();
+            const newContents = [];
             if (filtered.length === 0) {
                 itemsContainer.innerHTML = '<p style="color: var(--subtle-text-color); grid-column: 1 / -1; text-align: center; margin-top: 50px;">没有找到匹配的条目哦。</p>';
             } else {
-                filtered.forEach(i => itemsContainer.appendChild(i.type === 'note' ? createNoteCard(i, allTerms, serialMap.get(i.id)) : createFileCard(i, allTerms, serialMap.get(i.id))));
+                for (const item of filtered) {
+                    const key = String(item.id);
+                    let card = filterCardCache.get(key);
+                    if (!card) {
+                        card = item.type === 'note' ? createNoteCard(item, allTerms, serialMap.get(item.id)) : createFileCard(item, allTerms, serialMap.get(item.id));
+                        filterCardCache.set(key, card);
+                        const content = card.querySelector('.note-content');
+                        if (content) newContents.push(content);
+                    }
+                    fragment.appendChild(card);
+                }
+                itemsContainer.replaceChildren(fragment);
             }
-            const allContentDivs = itemsContainer.querySelectorAll('.note-content'); 
-            allContentDivs.forEach(div => { if (div.scrollHeight > (parseFloat(getComputedStyle(div).lineHeight) * 5)) div.classList.add('collapsible'); });
+            // Read all heights first, then write classes, avoiding repeated forced layout.
+            const collapsible = newContents.filter(div => div.scrollHeight > parseFloat(getComputedStyle(div).lineHeight) * 5);
+            collapsible.forEach(div => div.classList.add('collapsible'));
 
             // 如果在选择模式下刷新了（例如筛选改变），需要退出选择模式或重新绑定
             if (isSelectionMode) exitSelectionMode();
@@ -1441,8 +1457,8 @@
         const showSearchFilterModal = () => { renderSortOptions(); const allGroups = getAllGroups(); searchFilterList.innerHTML = allGroups.length === 0 ? '<p style="color: var(--subtle-text-color); padding: 10px; text-align: center;">暂无分组</p>' : allGroups.map(g => `<label><input type="checkbox" value="${escapeHTML(g)}" ${searchFilterGroups.includes(g) ? 'checked' : ''}> ${escapeHTML(g)}</label>`).join(''); searchFilterModal.classList.add('visible'); };
         const hideSearchFilterModal = () => searchFilterModal.classList.remove('visible');
         searchFilterBtn.addEventListener('click', (e) => { e.stopPropagation(); searchFilterModal.classList.contains('visible') ? hideSearchFilterModal() : showSearchFilterModal(); });
-        searchFilterList.addEventListener('change', () => { searchFilterGroups = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); itemsContainer.scrollTop = 0; });
-        searchFilterClear.addEventListener('click', () => { searchFilterGroups = []; searchFilterList.querySelectorAll('input:checked').forEach(input => input.checked = false); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(); itemsContainer.scrollTop = 0; });
+        searchFilterList.addEventListener('change', () => { searchFilterGroups = [...searchFilterList.querySelectorAll('input:checked')].map(input => input.value); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(true); itemsContainer.scrollTop = 0; });
+        searchFilterClear.addEventListener('click', () => { searchFilterGroups = []; searchFilterList.querySelectorAll('input:checked').forEach(input => input.checked = false); saveSearchFilter(); updateSearchFilterBtnState(); renderItems(true); itemsContainer.scrollTop = 0; });
         document.addEventListener('click', (e) => { if (!searchFilterModal.contains(e.target) && e.target !== searchFilterBtn) hideSearchFilterModal(); });
 
         // 🌟 核心修复：App/WebView 环境下 PDF 预览 (Data传输 + XHR Fallback)
