@@ -338,6 +338,17 @@
         .note-card:hover, .file-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px hsla(var(--theme-hue), 20%, 50%, 0.15); }
         .file-card { cursor: pointer; }
 
+        .note-card.usage-used {
+            --card-bg: hsl(var(--theme-hue), calc(var(--theme-sat) * 0.35), 96%);
+        }
+        .note-card.usage-used .note-content { color: #70757c; }
+        .note-card.usage-used .card-serial::after {
+            content: '✓ 已使用';
+            margin-left: 8px;
+            font-size: 0.85em;
+            font-weight: normal;
+            color: var(--subtle-text-color);
+        }
         .note-content { white-space: pre-wrap; word-wrap: break-word; flex-grow: 1; margin-bottom: 15px; transition: max-height 0.35s ease-in-out; }
         .note-content.collapsible { max-height: calc(1em * var(--line-height) * 5); overflow: hidden; position: relative; cursor: pointer; }
         .note-content.collapsible:not(.expanded)::after { content: '... 点击展开'; position: absolute; bottom: 0; right: 0; background: linear-gradient(to right, transparent, var(--card-bg) 25%); padding: 0 0 2px 30px; color: var(--subtle-text-color); font-weight: bold; font-size: 0.9em; }
@@ -964,10 +975,11 @@
                     </div>
                 </div>`;
             if (usageTrackingEnabled) {
+                c.classList.toggle('usage-used', note.used === true);
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'usage-toggle-btn';
-                button.textContent = note.used === true ? '已使用 ✓' : '标记已使用';
+                button.textContent = note.used === true ? '取消标记' : '标记已使用';
                 button.title = note.used === true ? '取消已使用标记' : '标记为已使用';
                 button.setAttribute('aria-pressed', String(note.used === true));
                 c.querySelector('.item-actions').prepend(button);
@@ -1095,7 +1107,8 @@
                         const previousOverflowAnchor = itemsContainer.style.overflowAnchor;
                         itemsContainer.style.overflowAnchor = 'none';
 
-                        btn.textContent = note.used === true ? '已使用 ✓' : '标记已使用';
+                        card.classList.toggle('usage-used', note.used === true);
+                        btn.textContent = note.used === true ? '取消标记' : '标记已使用';
                         btn.title = note.used === true ? '取消已使用标记' : '标记为已使用';
                         btn.setAttribute('aria-pressed', String(note.used === true));
                         const byId = new Map([...notes, ...files].map(item => [String(item.id), item]));
@@ -1105,9 +1118,14 @@
                             return other && (usagePriority(note) - usagePriority(other) || other.id - note.id) < 0;
                         });
                         itemsContainer.insertBefore(card, before || null);
-                        itemsContainer.scrollTop = previousScroll;
-                        if (anchor && anchorOffset !== undefined) {
-                            itemsContainer.scrollTop += anchor.getBoundingClientRect().top - anchorOffset;
+                        if (note.used === true) {
+                            itemsContainer.scrollTop = previousScroll;
+                            if (anchor && anchorOffset !== undefined) {
+                                itemsContainer.scrollTop += anchor.getBoundingClientRect().top - anchorOffset;
+                            }
+                        } else {
+                            const offset = card.getBoundingClientRect().top - itemsContainer.getBoundingClientRect().top;
+                            itemsContainer.scrollTop += offset - 16;
                         }
                         btn.disabled = false;
                         requestAnimationFrame(() => requestAnimationFrame(() => {
