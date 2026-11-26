@@ -372,7 +372,11 @@
             font-size: 0.9em; color: var(--subtle-text-color); transition: color 0.2s; display: inline-flex; align-items: center; gap: 3px;
         }
         .item-actions button:hover { color: var(--button-bg); }
-        .item-actions .usage-toggle-btn { margin-right: auto; border: 1px solid var(--border-color); border-radius: 3px; padding: 4px 8px; background: transparent; white-space: nowrap; }
+        .item-actions .usage-toggle-btn { margin-right: auto; border: 0; border-radius: 0; padding: 5px 0; background: transparent; white-space: nowrap; color: var(--theme-color-darker); text-decoration: underline dashed; text-underline-offset: 4px; text-decoration-thickness: 1px; gap: 5px; }
+        .item-actions .usage-toggle-btn::before { content: ''; display: inline-block; width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 50%; flex-shrink: 0; }
+        .item-actions .usage-toggle-btn[aria-pressed="true"]::before { background: currentColor; }
+        button:not(:disabled) { transition: opacity 120ms ease-out, color 120ms ease-out, background-color 120ms ease-out; -webkit-tap-highlight-color: transparent; }
+        button:not(:disabled):active { opacity: .55; transition-duration: 40ms; }
         .highlight { background-color: var(--highlight-bg); border-radius: 3px; padding: 0 2px; color: #333; }
 
         /* (F2) 时间戳样式 */
